@@ -63,6 +63,31 @@ varslingen bliver **kun registreret som data** (modtager, ydelse, udløbsdato,
 tidspunkt) og vist i brugerfladen. Afsendelse er bevidst deaktiveret; se
 `src/ydelser/varsling.ts`, hvor kanalen er markeret `EMAIL_DEAKTIVERET`.
 
+**Lag 4 — Opkrævning og sagsbehandling** (`src/opkraevning/`, `src/sag/`, `src/data/opkraevningStore.ts`, `src/data/sagStore.ts`, `public/`)
+
+- **Opkrævning** (`src/opkraevning/opkraevning.ts`): den rene `dannOpkraevning`
+  danner en regning (`opkraevning` + `opkraevningslinje`) for en ejendom og
+  periode. Den **genbruger den eksisterende takstberegning** til de periodiske
+  linjer (løbende ydelser) og tilføjer engangsleverancer leveret i perioden —
+  intet nyt beregningsprincip. Hver linje gemmer `antal_dage` og `takst_id`, så
+  regningen kan efterprøves. Status følger KLADDE → GODKENDT → SENDT → BETALT.
+- **Sagsbehandling** (`src/sag/`): `sagstype` (KLE-kodeliste med
+  sagsbehandlingsfrist), `sag`, `afgoerelse` og `journalnotat`. Rene funktioner:
+  `opretSag` (frist beregnet af sagstypen), `traefAfgoerelse`
+  (**hjemmel er obligatorisk** — uden hjemmel afvises afgørelsen) og
+  statusforløb MODTAGET → UNDER_BEHANDLING → PARTSHØRING → AFGJORT → LUKKET.
+  Journalnotater er **append-only** (rettelser sker ved nyt notat).
+- Brugerfladen: et Opkrævning-panel (dan/godkend/send/betal, linjer, total) og
+  et Sagsbehandling-panel (sagsliste + sagsdetalje med statusforløb, afgørelse og
+  journal), begge med dialoger til oprettelse.
+
+### Fiktiv kommune: Korsbæk
+
+Systemet er "brandet" som **Korsbæk Kommune** (opdigtet) med et fiktivt
+våbenskjold øverst til højre. Adresserne bag er reelle Roskilde-demoadresser, så
+DAWA-adresseopslaget fortsat virker. Både kommune og parter er tydeligt mærket
+som fiktive.
+
 ## Kør appen lokalt
 
 ```bash

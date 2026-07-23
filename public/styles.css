@@ -109,6 +109,46 @@ li[role="option"]:focus-visible,
   font-size: 1.4rem;
 }
 
+/* Fiktiv Korsbæk-kommuneidentitet i højre side af topbaren. */
+.kommune {
+  display: flex;
+  align-items: center;
+  gap: 0.55rem;
+  white-space: nowrap;
+  border-left: 1px solid #34567a;
+  padding-left: 1rem;
+  align-self: center;
+}
+.kommune__vaaben {
+  width: 44px;
+  height: 51px;
+  display: block;
+  filter: drop-shadow(0 1px 1px rgba(0, 0, 0, 0.4));
+}
+.kommune__tekst {
+  display: flex;
+  flex-direction: column;
+  line-height: 1.2;
+}
+.kommune__navn {
+  font-size: 0.95rem;
+  font-weight: 700;
+}
+.kommune__under {
+  font-size: 0.72rem;
+  color: #b9cbdd;
+}
+.kommune__under .fiktiv-badge {
+  margin-left: 0.1rem;
+}
+/* På smalle skærme rykker identiteten under søgningen. */
+@media (max-width: 40rem) {
+  .kommune {
+    border-left: none;
+    padding-left: 0;
+  }
+}
+
 .soegning {
   flex: 1 1 24rem;
   position: relative;
@@ -649,3 +689,37 @@ details[open] > .panel__summary::after {
   justify-content: flex-end;
   gap: 0.6rem;
 }
+
+/* --- Opkrævning --- */
+.opk-hoved { margin: 0 0 .6rem; font-size: .95rem; }
+tfoot td { font-weight: 700; background: #f5f7f9; }
+#opk-total { text-align: right; }
+.datatabel td:last-child, .datatabel th:last-child { text-align: left; }
+.opk-handling { margin-top: .7rem; display: flex; gap: .5rem; flex-wrap: wrap; }
+
+/* --- Sagsbehandling: liste + detalje --- */
+.sager-split { display: grid; grid-template-columns: 16rem 1fr; gap: 1rem; }
+@media (max-width: 44rem) { .sager-split { grid-template-columns: 1fr; } }
+.sagsliste { list-style: none; margin: 0; padding: 0; border: 1px solid var(--graa-kant); border-radius: 2px; }
+.sagsliste li { margin: 0; }
+.sagsliste button {
+  width: 100%; text-align: left; background: transparent; border: none;
+  border-bottom: 1px solid var(--graa-bg); padding: .45rem .55rem; cursor: pointer; font-size: .82rem; color: var(--tekst);
+}
+.sagsliste button:hover { background: #eef2f6; }
+.sagsliste button[aria-current="true"] { background: var(--blaa); color: #fff; }
+.sagsliste .nr { font-weight: 700; display: block; }
+.sagsliste .undertekst { display: block; font-size: .74rem; opacity: .9; }
+.sag-detalje { border: 1px solid var(--graa-kant); border-radius: 2px; padding: .7rem .85rem; min-height: 6rem; }
+.trin { display: flex; flex-wrap: wrap; gap: .3rem; margin: 0 0 .7rem; font-size: .72rem; }
+.trin span { padding: .12rem .5rem; border-radius: 2px; background: #e4e7ea; color: #37414b; }
+.trin span.naaet { background: var(--blaa); color: #fff; }
+.sag-detalje dl { display: grid; grid-template-columns: max-content 1fr; gap: .2rem .8rem; margin: 0 0 .6rem; font-size: .86rem; }
+.sag-detalje dt { font-weight: 600; color: var(--tekst-daempet); }
+.sag-detalje dd { margin: 0; }
+.sag-detalje h3 { font-size: .95rem; margin: .5rem 0 .3rem; }
+.journal { border-left: 3px solid var(--blaa-lys); padding: .35rem .6rem; margin: .4rem 0; background: #f7f9fb; font-size: .84rem; }
+.journal .meta { color: var(--tekst-daempet); font-size: .74rem; }
+.notat-tilfoej { display: flex; gap: .4rem; margin-top: .5rem; }
+.notat-tilfoej input { flex: 1; padding: .35rem .5rem; border: 1px solid var(--graa-kant-moerk); border-radius: 2px; }
+.dialog__felt textarea { padding: .4rem .5rem; border: 1px solid var(--graa-kant-moerk); border-radius: 2px; font-family: inherit; font-size: .95rem; resize: vertical; }
