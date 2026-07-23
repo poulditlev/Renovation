@@ -25,13 +25,16 @@
 
 html {
   font-size: 16px;
+  /* Neutral flade (samme som theme-color), så browserens egen værktøjslinje
+     ikke aflæser det gule banner. */
+  background: #f4f6f8;
 }
 
 body {
   margin: 0;
   font-family: "Segoe UI", "Helvetica Neue", Arial, sans-serif;
   color: var(--tekst);
-  background: var(--graa-bg);
+  background: #f4f6f8;
   line-height: 1.45;
 }
 
@@ -58,12 +61,16 @@ li[role="option"]:focus-visible,
 }
 
 /* --- Frossen topzone: banner + søgning + kontekstlinje er fastlåst øverst.
-   Hele zonen er sticky (virker også på mobil); alt derunder scroller. --- */
+   Hele zonen er sticky (virker også på mobil); alt derunder scroller.
+   En smal neutral stribe øverst (padding-top) sørger for at det gule banner
+   ikke rører viewportens øverste kant - så browserens egen værktøjslinje
+   (fx Safari på iOS) aflæser den neutrale farve i stedet for det gule. --- */
 .topzone {
   position: sticky;
   top: 0;
   z-index: 1000;
-  background: var(--graa-bg);
+  background: #f4f6f8;
+  padding-top: 7px;
 }
 
 /* --- Testmiljø-banner (altid synligt, kan ikke lukkes) --- */
