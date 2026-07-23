@@ -185,12 +185,16 @@ function visEjendom(data, kilde) {
     }
   }
 
-  // Ydelser (løbende + engangs + varslinger). Hentes kun for register-ejendomme;
-  // en live-fundet adresse er ikke oprettet i registret og har ingen ydelser.
+  // Ydelser, opkrævning og sager hentes kun for register-ejendomme; en
+  // live-fundet adresse er ikke oprettet i registret.
   if (valgtEjendomId) {
     indlaesYdelser(valgtEjendomId);
+    indlaesOpkraevning(valgtEjendomId);
+    indlaesSager(valgtEjendomId);
   } else {
     ryddYdelser();
+    ryddOpkraevning();
+    ryddSager();
   }
 
   const materiel = data.materiel || [];
@@ -681,6 +685,330 @@ el("tilfoej-form").addEventListener("submit", async (ev) => {
   }
 });
 
+// --- Statusetiketter for opkrævning, sag og afgørelse ------------------------
+const OPK_STATUS = {
+  KLADDE: { tekst: "Kladde", farve: "graa" },
+  GODKENDT: { tekst: "Godkendt", farve: "blaa" },
+  SENDT: { tekst: "Sendt", farve: "gul" },
+  BETALT: { tekst: "Betalt", farve: "groen" },
+  ANNULLERET: { tekst: "Annulleret", farve: "roed" },
+};
+const SAG_STATUS = {
+  MODTAGET: { tekst: "Modtaget", farve: "graa" },
+  UNDER_BEHANDLING: { tekst: "Under behandling", farve: "blaa" },
+  PARTSHOERING: { tekst: "Partshøring", farve: "gul" },
+  AFGJORT: { tekst: "Afgjort", farve: "groen" },
+  LUKKET: { tekst: "Lukket", farve: "graa" },
+};
+const SAG_TRIN = ["MODTAGET", "UNDER_BEHANDLING", "PARTSHOERING", "AFGJORT", "LUKKET"];
+const AFG_RESULTAT = {
+  IMOEDEKOMMET: { tekst: "Imødekommet", farve: "groen" },
+  DELVIST: { tekst: "Delvist imødekommet", farve: "gul" },
+  AFSLAG: { tekst: "Afslag", farve: "roed" },
+};
+function pil(kode, tabel) {
+  const v = tabel[kode] || { tekst: kode, farve: "graa" };
+  return `<span class="status-pil status-${v.farve}">${escapeHtml(v.tekst)}</span>`;
+}
+
+// --- Opkrævning --------------------------------------------------------------
+function ryddOpkraevning() {
+  el("opk-visning").hidden = true;
+  el("opk-tom").hidden = false;
+}
+
+async function indlaesOpkraevning(ejendomId) {
+  try {
+    const data = await hentJson(`/api/ejendomme/${encodeURIComponent(ejendomId)}/opkraevninger`);
+    if (data.seneste) renderOpkraevning(data.seneste);
+    else ryddOpkraevning();
+  } catch {
+    ryddOpkraevning();
+  }
+}
+
+function renderOpkraevning(seneste) {
+  const o = seneste.opkraevning;
+  el("opk-tom").hidden = true;
+  el("opk-visning").hidden = false;
+  el("opk-periode").textContent = `Periode ${o.periode_fra} – ${o.periode_til}`;
+  el("opk-status").innerHTML = pil(o.status, OPK_STATUS);
+
+  const tbody = el("opk-linjer");
+  tbody.innerHTML = "";
+  seneste.linjer.forEach((l, i) => {
+    const tr = document.createElement("tr");
+    tr.innerHTML =
+      `<td>${i + 1}</td>` +
+      `<td>${escapeHtml(l.beskrivelse)}</td>` +
+      `<td>${l.antal_dage != null ? l.antal_dage : "—"}</td>` +
+      `<td style="text-align:right">${formatOere(l.beloeb_oere)}</td>`;
+    tbody.append(tr);
+  });
+  el("opk-total").textContent = formatOere(o.beloeb_total_oere);
+  el("opk-total").style.textAlign = "right";
+
+  // Handlingsknapper efter status (KLADDE→GODKENDT→SENDT→BETALT).
+  const naeste = { KLADDE: ["GODKENDT", "Godkend"], GODKENDT: ["SENDT", "Registrér sendt"], SENDT: ["BETALT", "Registrér betaling"] }[o.status];
+  const handling = el("opk-handling");
+  handling.innerHTML = "";
+  if (naeste) {
+    const b = document.createElement("button");
+    b.type = "button";
+    b.className = "knap";
+    b.textContent = naeste[1];
+    b.addEventListener("click", () => skiftOpkStatus(o.id, naeste[0]));
+    handling.append(b);
+  }
+}
+
+async function skiftOpkStatus(opkId, status) {
+  try {
+    await postJson(`/api/opkraevning/${encodeURIComponent(opkId)}/status`, { status });
+    if (valgtEjendomId) indlaesOpkraevning(valgtEjendomId);
+  } catch (e) {
+    alert(`Kunne ikke skifte status: ${e.message}`);
+  }
+}
+
+el("dan-opkraevning").addEventListener("click", async () => {
+  if (!valgtEjendomId) return;
+  try {
+    await postJson(`/api/ejendomme/${encodeURIComponent(valgtEjendomId)}/opkraevning/dan`, {
+      periode_fra: "2026-01-01",
+      periode_til: "2027-01-01",
+    });
+    indlaesOpkraevning(valgtEjendomId);
+  } catch (e) {
+    alert(`Kunne ikke danne opkrævning: ${e.message}`);
+  }
+});
+
+// --- Sagsbehandling ----------------------------------------------------------
+let sager = [];
+let valgtSagId = null;
+let sagskatalog = { sagstyper: [] };
+
+function ryddSager() {
+  sager = [];
+  valgtSagId = null;
+  el("sagsliste").innerHTML = "";
+  el("sager-tom").hidden = false;
+  el("sag-detalje").innerHTML = '<p class="tomtilstand">Vælg en sag i listen for at se detaljer.</p>';
+}
+
+async function indlaesSager(ejendomId) {
+  try {
+    const data = await hentJson(`/api/ejendomme/${encodeURIComponent(ejendomId)}/sager`);
+    sager = data.sager || [];
+    renderSagsliste();
+    // Behold valgt sag hvis den stadig findes, ellers vælg den første.
+    const stadig = sager.find((s) => s.sag.id === valgtSagId);
+    if (stadig) renderSagDetalje(stadig);
+    else if (sager.length > 0) vaelgSag(sager[0].sag.id);
+    else el("sag-detalje").innerHTML = '<p class="tomtilstand">Ingen sager. Opret en sag med "+ Opret sag".</p>';
+  } catch {
+    ryddSager();
+  }
+}
+
+function renderSagsliste() {
+  const ul = el("sagsliste");
+  ul.innerHTML = "";
+  el("sager-tom").hidden = sager.length > 0;
+  for (const s of sager) {
+    const li = document.createElement("li");
+    const b = document.createElement("button");
+    b.type = "button";
+    if (s.sag.id === valgtSagId) b.setAttribute("aria-current", "true");
+    b.innerHTML =
+      `<span class="nr">${escapeHtml(s.sag.sagsnummer)}</span>` +
+      `<span class="undertekst">${escapeHtml(s.sagstype_navn)} · ${(SAG_STATUS[s.sag.status] || {}).tekst || s.sag.status}</span>`;
+    b.addEventListener("click", () => vaelgSag(s.sag.id));
+    li.append(b);
+    ul.append(li);
+  }
+}
+
+function vaelgSag(id) {
+  valgtSagId = id;
+  renderSagsliste();
+  const s = sager.find((x) => x.sag.id === id);
+  if (s) renderSagDetalje(s);
+}
+
+function renderSagDetalje(s) {
+  const sag = s.sag;
+  const naaetIndeks = SAG_TRIN.indexOf(sag.status);
+  const trin = SAG_TRIN.map(
+    (t, i) => `<span class="${i <= naaetIndeks ? "naaet" : ""}">${(SAG_STATUS[t] || {}).tekst || t}</span>`
+  ).join("");
+
+  let html = `<div class="trin">${trin}</div>`;
+  html +=
+    `<dl>` +
+    `<dt>Sagsnummer</dt><dd>${escapeHtml(sag.sagsnummer)}</dd>` +
+    `<dt>Sagstype</dt><dd>${escapeHtml(s.sagstype_navn)}${s.kle_nummer ? ` (KLE ${escapeHtml(s.kle_nummer)})` : ""}</dd>` +
+    `<dt>Status</dt><dd>${pil(sag.status, SAG_STATUS)}</dd>` +
+    `<dt>Modtaget</dt><dd>${escapeHtml(sag.modtaget_dato)}</dd>` +
+    `<dt>Frist</dt><dd>${escapeHtml(sag.frist_dato)}</dd>` +
+    `<dt>Ansvarlig</dt><dd>${escapeHtml(sag.ansvarlig_bruger || "—")}</dd>` +
+    (sag.lukket_dato ? `<dt>Lukket</dt><dd>${escapeHtml(sag.lukket_dato)}</dd>` : "") +
+    `</dl>`;
+
+  // Statushandlinger (næste skridt) + træf afgørelse.
+  const naeste = {
+    MODTAGET: ["UNDER_BEHANDLING", "Start behandling"],
+    UNDER_BEHANDLING: ["PARTSHOERING", "Send i partshøring"],
+    PARTSHOERING: ["UNDER_BEHANDLING", "Tilbage til behandling"],
+    AFGJORT: ["LUKKET", "Luk sag"],
+  }[sag.status];
+  html += `<div class="opk-handling">`;
+  if (naeste) html += `<button type="button" class="knap knap--sekundaer" data-sagstatus="${naeste[0]}">${naeste[1]}</button>`;
+  if (sag.status !== "AFGJORT" && sag.status !== "LUKKET") html += `<button type="button" class="knap" data-afgoerelse="1">Træf afgørelse</button>`;
+  html += `</div>`;
+
+  // Afgørelse
+  if (s.afgoerelse) {
+    const a = s.afgoerelse;
+    html +=
+      `<h3>Afgørelse</h3><dl>` +
+      `<dt>Resultat</dt><dd>${pil(a.resultat, AFG_RESULTAT)}</dd>` +
+      `<dt>Hjemmel</dt><dd>${escapeHtml(a.hjemmel)}</dd>` +
+      `<dt>Begrundelse</dt><dd>${escapeHtml(a.begrundelse || "—")}</dd>` +
+      `<dt>Afgjort</dt><dd>${escapeHtml(a.afgjort_dato)} · ${escapeHtml(a.afgjort_af)}</dd>` +
+      `<dt>Klagefrist</dt><dd>${escapeHtml(a.klagefrist_dato)}</dd>` +
+      `</dl>`;
+  }
+
+  // Journalnotater (append-only) + tilføj
+  html += `<h3>Journalnotater <span class="hjaelptekst" style="color:var(--tekst-daempet)">(kan ikke redigeres/slettes)</span></h3>`;
+  for (const j of s.journal) {
+    html += `<div class="journal">${escapeHtml(j.tekst)}<div class="meta">${escapeHtml(j.oprettet)} · ${escapeHtml(j.oprettet_af)}</div></div>`;
+  }
+  html +=
+    `<div class="notat-tilfoej">` +
+    `<label class="visuelt-skjult" for="nyt-notat">Nyt journalnotat</label>` +
+    `<input id="nyt-notat" type="text" placeholder="Tilføj journalnotat…" />` +
+    `<button type="button" class="knap knap--sekundaer" id="tilfoej-notat">Tilføj notat</button>` +
+    `</div>`;
+
+  el("sag-detalje").innerHTML = html;
+
+  // Bind handlinger
+  el("sag-detalje").querySelectorAll("[data-sagstatus]").forEach((b) =>
+    b.addEventListener("click", () => skiftSagStatusUI(sag.id, b.getAttribute("data-sagstatus")))
+  );
+  const afgBtn = el("sag-detalje").querySelector("[data-afgoerelse]");
+  if (afgBtn) afgBtn.addEventListener("click", () => aabnAfgoerelse(sag.id));
+  el("tilfoej-notat")?.addEventListener("click", () => tilfoejNotat(sag.id));
+}
+
+async function skiftSagStatusUI(sagId, status) {
+  try {
+    await postJson(`/api/sager/${encodeURIComponent(sagId)}/status`, { status });
+    if (valgtEjendomId) indlaesSager(valgtEjendomId);
+  } catch (e) {
+    alert(`Kunne ikke skifte status: ${e.message}`);
+  }
+}
+
+async function tilfoejNotat(sagId) {
+  const input = el("nyt-notat");
+  const tekst = (input.value || "").trim();
+  if (!tekst) return;
+  try {
+    await postJson(`/api/sager/${encodeURIComponent(sagId)}/journalnotat`, { tekst });
+    if (valgtEjendomId) indlaesSager(valgtEjendomId);
+  } catch (e) {
+    alert(`Kunne ikke tilføje notat: ${e.message}`);
+  }
+}
+
+// Opret sag-dialog
+const sagDialog = el("sag-dialog");
+async function indlaesSagskatalog() {
+  try {
+    sagskatalog = await hentJson("/api/sagskatalog");
+  } catch {
+    sagskatalog = { sagstyper: [] };
+  }
+}
+el("opret-sag").addEventListener("click", () => {
+  if (!valgtEjendomId) {
+    alert("Vælg en ejendom i registret først.");
+    return;
+  }
+  const sel = el("s-sagstype");
+  sel.innerHTML = "";
+  for (const t of sagskatalog.sagstyper) {
+    const opt = document.createElement("option");
+    opt.value = t.id;
+    opt.textContent = `${t.navn} (KLE ${t.kle_nummer})`;
+    opt.dataset.frist = t.sagsbehandlingsfrist_dage;
+    sel.append(opt);
+  }
+  opdaterFristHint();
+  el("sag-dialog-fejl").hidden = true;
+  sagDialog.showModal();
+});
+function opdaterFristHint() {
+  const opt = el("s-sagstype").selectedOptions[0];
+  el("s-frist-hint").textContent = opt ? `Sagsbehandlingsfrist: ${opt.dataset.frist} dage fra i dag.` : "";
+}
+el("s-sagstype").addEventListener("change", opdaterFristHint);
+el("sag-annuller").addEventListener("click", () => sagDialog.close());
+el("sag-form").addEventListener("submit", async (ev) => {
+  ev.preventDefault();
+  try {
+    await postJson(`/api/ejendomme/${encodeURIComponent(valgtEjendomId)}/sager`, {
+      sagstype_id: el("s-sagstype").value,
+    });
+    sagDialog.close();
+    indlaesSager(valgtEjendomId);
+  } catch (e) {
+    const f = el("sag-dialog-fejl");
+    f.textContent = e.message;
+    f.hidden = false;
+  }
+});
+
+// Træf afgørelse-dialog
+const afgDialog = el("afg-dialog");
+let afgSagId = null;
+function aabnAfgoerelse(sagId) {
+  afgSagId = sagId;
+  el("afg-form").reset();
+  el("afg-dialog-fejl").hidden = true;
+  afgDialog.showModal();
+}
+el("afg-annuller").addEventListener("click", () => afgDialog.close());
+el("afg-form").addEventListener("submit", async (ev) => {
+  ev.preventDefault();
+  const hjemmel = el("a-hjemmel").value.trim();
+  if (!hjemmel) {
+    const f = el("afg-dialog-fejl");
+    f.textContent = "Hjemmel er obligatorisk — uden hjemmel er afgørelsen ikke gyldig.";
+    f.hidden = false;
+    el("a-hjemmel").focus();
+    return;
+  }
+  try {
+    await postJson(`/api/sager/${encodeURIComponent(afgSagId)}/afgoerelse`, {
+      resultat: el("a-resultat").value,
+      begrundelse: el("a-begrundelse").value,
+      hjemmel,
+    });
+    afgDialog.close();
+    indlaesSager(valgtEjendomId);
+  } catch (e) {
+    const f = el("afg-dialog-fejl");
+    f.textContent = e.message;
+    f.hidden = false;
+  }
+});
+
 // --- Opstart -----------------------------------------------------------------
 indlaesEjendomsliste();
 indlaesKatalog();
+indlaesSagskatalog();

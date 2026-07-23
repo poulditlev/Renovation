@@ -36,7 +36,7 @@
 
         <search class="soegning">
           <form id="soegeform" role="search" autocomplete="off">
-            <label for="soegefelt">Søg adresse i Roskilde Kommune</label>
+            <label for="soegefelt">Søg adresse</label>
             <div class="soegning__felt">
               <input
                 id="soegefelt"
@@ -52,12 +52,39 @@
               <button type="submit" class="knap">Søg</button>
             </div>
             <p id="soegehjaelp" class="hjaelptekst">
-              Skriv mindst to tegn. Adressedata hentes fra DAWA. Brug piletasterne til at vælge et forslag.
+              Skriv mindst to tegn. Demoadresser i Roskilde; adressedata hentes fra DAWA. Brug piletasterne til at vælge et forslag.
             </p>
             <p id="soegefejl" class="fejlbesked" role="alert" hidden></p>
             <ul id="forslagsliste" role="listbox" aria-label="Adresseforslag" class="forslag" hidden></ul>
           </form>
         </search>
+
+        <!-- Fiktiv kommune-identitet: Korsbæk Kommunes (opdigtede) våbenskjold.
+             Kors + bæk: rødt kors i guld over hvide bølger i blåt. -->
+        <div class="kommune">
+          <svg class="kommune__vaaben" viewBox="0 0 120 140" role="img" aria-labelledby="vaaben-titel">
+            <title id="vaaben-titel">Korsbæk Kommunes fiktive våbenskjold</title>
+            <defs>
+              <clipPath id="korsbaek-skjold">
+                <path d="M12 10 H108 V70 C108 104 86 126 60 134 C34 126 12 104 12 70 Z" />
+              </clipPath>
+            </defs>
+            <g clip-path="url(#korsbaek-skjold)">
+              <rect x="0" y="0" width="120" height="72" fill="#e8b923" />
+              <rect x="53" y="16" width="14" height="44" fill="#9c2b2b" />
+              <rect x="40" y="28" width="40" height="14" fill="#9c2b2b" />
+              <rect x="0" y="72" width="120" height="68" fill="#1f4f7a" />
+              <path d="M14 92 q11 -9 22 0 t22 0 t22 0 t22 0 t22 0" fill="none" stroke="#fff" stroke-width="5" />
+              <path d="M14 108 q11 -9 22 0 t22 0 t22 0 t22 0 t22 0" fill="none" stroke="#fff" stroke-width="5" />
+            </g>
+            <path d="M12 10 H108 V70 C108 104 86 126 60 134 C34 126 12 104 12 70 Z" fill="none" stroke="#0d2a45" stroke-width="4" />
+            <path d="M12 10 H108 V70 C108 104 86 126 60 134 C34 126 12 104 12 70 Z" fill="none" stroke="#e8b923" stroke-width="1.5" />
+          </svg>
+          <span class="kommune__tekst">
+            <span class="kommune__navn">Korsbæk Kommune</span>
+            <span class="kommune__under">Teknik &amp; Miljø · <span class="fiktiv-badge">fiktiv</span></span>
+          </span>
+        </div>
       </header>
 
       <!-- Kontekstlinje: viser adresse, BFE, kommune og part for valgt ejendom. -->
@@ -176,6 +203,57 @@
             <p id="varsling-tom" class="tomtilstand" hidden>Ingen varslinger registreret.</p>
           </section>
 
+          <!-- Opkrævning: dan regningen for en periode (genbruger takstberegningen). -->
+          <section aria-labelledby="opk-overskrift" class="panel">
+            <div class="panel__hoved">
+              <h2 id="opk-overskrift">Opkrævning</h2>
+              <button type="button" class="knap knap--tilfoej" id="dan-opkraevning">Dan opkrævning for 2026</button>
+            </div>
+            <div id="opk-indhold">
+              <p id="opk-tom" class="tomtilstand">Ingen opkrævning dannet endnu.</p>
+              <div id="opk-visning" hidden>
+                <p class="opk-hoved">
+                  <span id="opk-periode"></span> · <span id="opk-status"></span>
+                </p>
+                <div class="tabelramme">
+                  <table class="datatabel">
+                    <caption class="visuelt-skjult">Opkrævningslinjer</caption>
+                    <thead>
+                      <tr>
+                        <th scope="col">Linje</th>
+                        <th scope="col">Beskrivelse</th>
+                        <th scope="col">Antal dage</th>
+                        <th scope="col">Beløb</th>
+                      </tr>
+                    </thead>
+                    <tbody id="opk-linjer"></tbody>
+                    <tfoot>
+                      <tr><td colspan="3">Total</td><td id="opk-total"></td></tr>
+                    </tfoot>
+                  </table>
+                </div>
+                <div class="opk-handling" id="opk-handling"></div>
+              </div>
+            </div>
+          </section>
+
+          <!-- Sagsbehandling: sagsliste + valgt sag med afgørelse og journal. -->
+          <section aria-labelledby="sager-overskrift" class="panel">
+            <div class="panel__hoved">
+              <h2 id="sager-overskrift">Sagsbehandling</h2>
+              <button type="button" class="knap knap--tilfoej" id="opret-sag">+ Opret sag</button>
+            </div>
+            <div class="sager-split">
+              <nav aria-label="Sager på ejendommen">
+                <ul class="sagsliste" id="sagsliste"></ul>
+                <p id="sager-tom" class="tomtilstand" hidden>Ingen sager på ejendommen.</p>
+              </nav>
+              <div id="sag-detalje" class="sag-detalje" aria-live="polite">
+                <p class="tomtilstand">Vælg en sag i listen for at se detaljer.</p>
+              </div>
+            </div>
+          </section>
+
           <section aria-labelledby="kort-overskrift" class="panel">
             <h2 id="kort-overskrift">Kort</h2>
             <div id="kort" class="kort" role="application" aria-label="Interaktivt kort over ejendommens jordstykke og beholderstandpladser"></div>
@@ -269,6 +347,52 @@
         <div class="dialog__knapper">
           <button type="button" class="knap knap--sekundaer" id="dialog-annuller">Annullér</button>
           <button type="submit" class="knap" id="dialog-gem">Tilføj</button>
+        </div>
+      </form>
+    </dialog>
+
+    <!-- Opret sag-dialog -->
+    <dialog id="sag-dialog" class="dialog" aria-labelledby="sag-dialog-titel">
+      <form method="dialog" id="sag-form" class="dialog__form">
+        <h2 id="sag-dialog-titel" class="dialog__titel">Opret sag</h2>
+        <p class="dialog__felt">
+          <label for="s-sagstype">Sagstype</label>
+          <select id="s-sagstype" required></select>
+        </p>
+        <p class="hjaelptekst" id="s-frist-hint"></p>
+        <p id="sag-dialog-fejl" class="fejlbesked" role="alert" hidden></p>
+        <div class="dialog__knapper">
+          <button type="button" class="knap knap--sekundaer" id="sag-annuller">Annullér</button>
+          <button type="submit" class="knap">Opret</button>
+        </div>
+      </form>
+    </dialog>
+
+    <!-- Træf afgørelse-dialog -->
+    <dialog id="afg-dialog" class="dialog" aria-labelledby="afg-dialog-titel">
+      <form method="dialog" id="afg-form" class="dialog__form">
+        <h2 id="afg-dialog-titel" class="dialog__titel">Træf afgørelse</h2>
+        <p class="dialog__felt">
+          <label for="a-resultat">Resultat</label>
+          <select id="a-resultat" required>
+            <option value="IMOEDEKOMMET">Imødekommet</option>
+            <option value="DELVIST">Delvist imødekommet</option>
+            <option value="AFSLAG">Afslag</option>
+          </select>
+        </p>
+        <p class="dialog__felt">
+          <label for="a-begrundelse">Begrundelse</label>
+          <textarea id="a-begrundelse" rows="3"></textarea>
+        </p>
+        <p class="dialog__felt">
+          <label for="a-hjemmel">Hjemmel (obligatorisk)</label>
+          <input type="text" id="a-hjemmel" required aria-describedby="a-hjemmel-hint" />
+          <span id="a-hjemmel-hint" class="hjaelptekst">Uden hjemmel er afgørelsen ikke gyldig.</span>
+        </p>
+        <p id="afg-dialog-fejl" class="fejlbesked" role="alert" hidden></p>
+        <div class="dialog__knapper">
+          <button type="button" class="knap knap--sekundaer" id="afg-annuller">Annullér</button>
+          <button type="submit" class="knap">Registrér afgørelse</button>
         </div>
       </form>
     </dialog>

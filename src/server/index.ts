@@ -15,6 +15,24 @@ import {
   tilfoejEngangs,
   tilfoejLoebende,
 } from '../data/ydelserStore.js';
+import {
+  danOpkraevning,
+  linjerForOpkraevning,
+  opkraevningerForEjendom,
+  skiftOpkraevningStatus,
+} from '../data/opkraevningStore.js';
+import type { OpkraevningStatus } from '../opkraevning/index.js';
+import { findSagstype, sagstyper } from '../sag/index.js';
+import type { Afgoerelsesresultat, SagStatus } from '../sag/index.js';
+import {
+  afgoerelseForSag,
+  journalForSag,
+  sagerForEjendom,
+  skiftStatus as skiftSagStatusStore,
+  tilfoejAfgoerelse,
+  tilfoejJournalnotat,
+  tilfoejSag,
+} from '../data/sagStore.js';
 
 // Simpel HTTP-server for sagsbehandler-brugerfladen. Serverer de statiske filer
 // i public/ og et lille JSON-API. Al DAWA-kommunikation går gennem det
@@ -273,6 +291,136 @@ function haandterVarsling(res: ServerResponse, ydelseId: string): void {
   }
 }
 
+// --- Opkrævning --------------------------------------------------------------
+
+/** GET /api/ejendomme/:id/opkraevninger - nyeste opkrævning + linjer + historik. */
+function haandterOpkraevninger(res: ServerResponse, ejendomId: string): void {
+  if (!findEjendom(ejendomId)) {
+    sendJson(res, 404, { fejl: 'Ejendommen findes ikke i registret.' });
+    return;
+  }
+  const liste = opkraevningerForEjendom(ejendomId);
+  const seneste = liste[0] ?? null;
+  sendJson(res, 200, {
+    seneste: seneste ? { opkraevning: seneste, linjer: linjerForOpkraevning(seneste.id) } : null,
+    historik: liste,
+  });
+}
+
+/** POST /api/ejendomme/:id/opkraevning/dan */
+async function haandterDanOpkraevning(req: IncomingMessage, res: ServerResponse, ejendomId: string): Promise<void> {
+  if (!findEjendom(ejendomId)) {
+    sendJson(res, 404, { fejl: 'Ejendommen findes ikke i registret.' });
+    return;
+  }
+  try {
+    const krop = await laesJson(req);
+    const fra = somStreng(krop['periode_fra']) || `${new Date().getFullYear()}-01-01`;
+    const til = somStreng(krop['periode_til']) || `${new Date().getFullYear() + 1}-01-01`;
+    const dannet = danOpkraevning(ejendomId, fra, til);
+    sendJson(res, 201, dannet);
+  } catch (e) {
+    sendJson(res, 400, { fejl: (e as Error).message });
+  }
+}
+
+/** POST /api/opkraevning/:id/status */
+async function haandterOpkraevningStatus(req: IncomingMessage, res: ServerResponse, opkId: string): Promise<void> {
+  try {
+    const krop = await laesJson(req);
+    const status = somStreng(krop['status']) as OpkraevningStatus;
+    const opdateret = skiftOpkraevningStatus(opkId, status);
+    sendJson(res, 200, opdateret);
+  } catch (e) {
+    sendJson(res, 400, { fejl: (e as Error).message });
+  }
+}
+
+// --- Sagsbehandling ----------------------------------------------------------
+
+/** Bygger visningen for sagerne på en ejendom (sagstype-navn, afgørelse, journal). */
+function byggSagerVisning(ejendomId: string): unknown {
+  return sagerForEjendom(ejendomId).map((sag) => {
+    const type = findSagstype(sag.sagstype_id);
+    return {
+      sag,
+      sagstype_navn: type?.navn ?? sag.sagstype_id,
+      kle_nummer: type?.kle_nummer ?? null,
+      afgoerelse: afgoerelseForSag(sag.id) ?? null,
+      journal: journalForSag(sag.id),
+    };
+  });
+}
+
+/** GET /api/ejendomme/:id/sager */
+function haandterSager(res: ServerResponse, ejendomId: string): void {
+  if (!findEjendom(ejendomId)) {
+    sendJson(res, 404, { fejl: 'Ejendommen findes ikke i registret.' });
+    return;
+  }
+  sendJson(res, 200, { sager: byggSagerVisning(ejendomId) });
+}
+
+/** GET /api/sagskatalog */
+function haandterSagskatalog(res: ServerResponse): void {
+  sendJson(res, 200, { sagstyper });
+}
+
+/** POST /api/ejendomme/:id/sager */
+async function haandterOpretSag(req: IncomingMessage, res: ServerResponse, ejendomId: string): Promise<void> {
+  if (!findEjendom(ejendomId)) {
+    sendJson(res, 404, { fejl: 'Ejendommen findes ikke i registret.' });
+    return;
+  }
+  try {
+    const krop = await laesJson(req);
+    const sag = tilfoejSag({ ejendom_id: ejendomId, sagstype_id: somStreng(krop['sagstype_id']) });
+    sendJson(res, 201, sag);
+  } catch (e) {
+    sendJson(res, 400, { fejl: (e as Error).message });
+  }
+}
+
+/** POST /api/sager/:id/status */
+async function haandterSagStatus(req: IncomingMessage, res: ServerResponse, sagId: string): Promise<void> {
+  try {
+    const krop = await laesJson(req);
+    const opdateret = skiftSagStatusStore(sagId, somStreng(krop['status']) as SagStatus);
+    sendJson(res, 200, opdateret);
+  } catch (e) {
+    sendJson(res, 400, { fejl: (e as Error).message });
+  }
+}
+
+/** POST /api/sager/:id/afgoerelse */
+async function haandterAfgoerelse(req: IncomingMessage, res: ServerResponse, sagId: string): Promise<void> {
+  try {
+    const krop = await laesJson(req);
+    const afgoerelse = tilfoejAfgoerelse(sagId, {
+      resultat: somStreng(krop['resultat']) as Afgoerelsesresultat,
+      begrundelse: somStreng(krop['begrundelse']),
+      hjemmel: somStreng(krop['hjemmel']),
+    });
+    sendJson(res, 201, afgoerelse);
+  } catch (e) {
+    // Fx manglende hjemmel afvises af den rene funktion.
+    sendJson(res, 400, { fejl: (e as Error).message });
+  }
+}
+
+/** POST /api/sager/:id/journalnotat */
+async function haandterJournalnotat(req: IncomingMessage, res: ServerResponse, sagId: string): Promise<void> {
+  try {
+    const krop = await laesJson(req);
+    const tekst = somStreng(krop['tekst']).trim();
+    if (tekst.length === 0) throw new Error('Notatet må ikke være tomt.');
+    const notat = tilfoejJournalnotat(sagId, tekst);
+    sendJson(res, 201, notat);
+  } catch (e) {
+    sendJson(res, 400, { fejl: (e as Error).message });
+  }
+}
+
 // --- Statiske filer ----------------------------------------------------------
 
 async function serverStatiskFil(res: ServerResponse, urlSti: string): Promise<void> {
@@ -316,6 +464,24 @@ async function haandter(req: IncomingMessage, res: ServerResponse): Promise<void
     const varslMatch = sti.match(/^\/api\/ydelser\/loebende\/([^/]+)\/varsling$/);
     if (varslMatch) return haandterVarsling(res, decodeURIComponent(varslMatch[1] as string));
 
+    const danMatch = sti.match(/^\/api\/ejendomme\/([^/]+)\/opkraevning\/dan$/);
+    if (danMatch) return haandterDanOpkraevning(req, res, decodeURIComponent(danMatch[1] as string));
+
+    const opkStatusMatch = sti.match(/^\/api\/opkraevning\/([^/]+)\/status$/);
+    if (opkStatusMatch) return haandterOpkraevningStatus(req, res, decodeURIComponent(opkStatusMatch[1] as string));
+
+    const opretSagMatch = sti.match(/^\/api\/ejendomme\/([^/]+)\/sager$/);
+    if (opretSagMatch) return haandterOpretSag(req, res, decodeURIComponent(opretSagMatch[1] as string));
+
+    const sagStatusMatch = sti.match(/^\/api\/sager\/([^/]+)\/status$/);
+    if (sagStatusMatch) return haandterSagStatus(req, res, decodeURIComponent(sagStatusMatch[1] as string));
+
+    const afgMatch = sti.match(/^\/api\/sager\/([^/]+)\/afgoerelse$/);
+    if (afgMatch) return haandterAfgoerelse(req, res, decodeURIComponent(afgMatch[1] as string));
+
+    const jnMatch = sti.match(/^\/api\/sager\/([^/]+)\/journalnotat$/);
+    if (jnMatch) return haandterJournalnotat(req, res, decodeURIComponent(jnMatch[1] as string));
+
     sendJson(res, 404, { fejl: 'Ukendt API-endpoint.' });
     return;
   }
@@ -331,10 +497,18 @@ async function haandter(req: IncomingMessage, res: ServerResponse): Promise<void
   const ydelserMatch = sti.match(/^\/api\/ejendomme\/([^/]+)\/ydelser$/);
   if (ydelserMatch) return haandterYdelser(res, decodeURIComponent(ydelserMatch[1] as string));
 
+  const opkListeMatch = sti.match(/^\/api\/ejendomme\/([^/]+)\/opkraevninger$/);
+  if (opkListeMatch) return haandterOpkraevninger(res, decodeURIComponent(opkListeMatch[1] as string));
+
+  const sagerMatch = sti.match(/^\/api\/ejendomme\/([^/]+)\/sager$/);
+  if (sagerMatch) return haandterSager(res, decodeURIComponent(sagerMatch[1] as string));
+
   const ejendomMatch = sti.match(/^\/api\/ejendomme\/([^/]+)$/);
   if (ejendomMatch) return haandterEjendom(res, decodeURIComponent(ejendomMatch[1] as string));
 
   if (sti === '/api/ydelseskatalog') return haandterYdelseskatalog(res);
+
+  if (sti === '/api/sagskatalog') return haandterSagskatalog(res);
 
   if (sti === '/api/adresse/soeg') return haandterAdressesoeg(res, url.searchParams.get('q') ?? '');
 

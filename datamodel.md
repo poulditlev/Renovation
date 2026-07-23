@@ -222,14 +222,17 @@ Regningen for én ejendom for én periode.
 | `id` | uuid | PK |
 | `opkraevning_id` | uuid | FK |
 | `materiel_id` | uuid | FK, nullable |
-| `takst_id` | uuid | FK. **Hvilken takst der faktisk blev brugt** |
+| `takst_id` | uuid | FK, nullable. **Hvilken takst der faktisk blev brugt** (null for engangslinjer) |
 | `beskrivelse` | text | |
-| `antal_dage` | int | Til forholdsmæssig beregning |
+| `antal_dage` | int | nullable. Til forholdsmæssig beregning (null for engangslinjer) |
 | `beloeb_oere` | bigint | |
 
 > **Vigtigt beregningsprincip.** En beholder der stod fra 1. marts skal kun koste
 > for de dage den stod. Linjen gemmer både `antal_dage` og `takst_id`, så
 > beregningen altid kan efterprøves — også efter taksten er ændret.
+> Periodiske linjer (materiel/løbende ydelser) beregnes forholdsmæssigt via
+> takstberegningen; engangsleverancer i perioden tilføjes som linjer uden dage
+> og takst (`antal_dage` og `takst_id` er da `null`).
 
 ---
 
