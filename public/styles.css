@@ -1,0 +1,392 @@
+/* Kommunalt fagsystem-look: informationstæt, nøgternt, grå/blå palet.
+   Bevidst ikke et moderne marketing-look. Kontrast og fokus følger WCAG 2.1 AA. */
+
+:root {
+  --blaa: #14395e; /* mørk myndighedsblå */
+  --blaa-lys: #1f4f7a;
+  --blaa-kant: #2d5f8a;
+  --graa-bg: #eef1f4;
+  --graa-panel: #ffffff;
+  --graa-kant: #c3ccd5;
+  --graa-kant-moerk: #97a4b1;
+  --tekst: #1a1f24;
+  --tekst-daempet: #4a545e;
+  --advarsel-bg: #ffe28a;
+  --advarsel-kant: #b8860b;
+  --advarsel-tekst: #3d2f00;
+  --ok: #1c6b2e;
+  --inaktiv: #6b3a1c;
+  --fokus: #b8410a; /* tydelig, kontrastrig fokusfarve */
+}
+
+* {
+  box-sizing: border-box;
+}
+
+html {
+  font-size: 16px;
+}
+
+body {
+  margin: 0;
+  font-family: "Segoe UI", "Helvetica Neue", Arial, sans-serif;
+  color: var(--tekst);
+  background: var(--graa-bg);
+  line-height: 1.45;
+}
+
+/* Synligt fokus overalt (tastaturnavigation). */
+a:focus-visible,
+button:focus-visible,
+input:focus-visible,
+li[role="option"]:focus-visible,
+[tabindex]:focus-visible {
+  outline: 3px solid var(--fokus);
+  outline-offset: 2px;
+}
+
+.visuelt-skjult {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0 0 0 0);
+  white-space: nowrap;
+  border: 0;
+}
+
+/* --- Testmiljø-banner (fastlåst, altid synligt) --- */
+.testbanner {
+  position: sticky;
+  top: 0;
+  z-index: 1000;
+  background: var(--advarsel-bg);
+  color: var(--advarsel-tekst);
+  border-bottom: 3px solid var(--advarsel-kant);
+  padding: 0.55rem 1rem;
+  font-size: 0.9rem;
+  text-align: center;
+}
+.testbanner strong {
+  letter-spacing: 0.05em;
+}
+
+/* --- Topbar med søgning --- */
+.topbar {
+  background: var(--blaa);
+  color: #fff;
+  padding: 0.6rem 1rem 0.9rem;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 1rem 2rem;
+  align-items: flex-start;
+}
+.topbar__brand {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  font-weight: 700;
+  font-size: 1.1rem;
+  padding-top: 1.4rem;
+  white-space: nowrap;
+}
+.topbar__logo {
+  font-size: 1.4rem;
+}
+
+.soegning {
+  flex: 1 1 24rem;
+  position: relative;
+}
+.soegning label {
+  display: block;
+  font-size: 0.8rem;
+  margin-bottom: 0.25rem;
+  color: #dbe6f0;
+}
+.soegning__felt {
+  display: flex;
+  gap: 0.4rem;
+}
+.soegning input {
+  flex: 1;
+  padding: 0.5rem 0.6rem;
+  border: 1px solid var(--graa-kant-moerk);
+  border-radius: 2px;
+  font-size: 1rem;
+}
+.knap {
+  background: var(--blaa-lys);
+  color: #fff;
+  border: 1px solid #0d2a45;
+  border-radius: 2px;
+  padding: 0.5rem 0.9rem;
+  font-size: 0.95rem;
+  cursor: pointer;
+}
+.knap:hover {
+  background: var(--blaa-kant);
+}
+.hjaelptekst {
+  margin: 0.3rem 0 0;
+  font-size: 0.78rem;
+  color: #cfdbe6;
+}
+.soegning .fejlbesked {
+  color: #fff3cd;
+  background: #7a1f1f;
+  border: 1px solid #a83232;
+  margin: 0.35rem 0 0;
+  padding: 0.3rem 0.5rem;
+  font-size: 0.82rem;
+  border-radius: 2px;
+}
+
+/* Autocomplete-forslag */
+.forslag {
+  position: absolute;
+  z-index: 900;
+  left: 0;
+  right: 0;
+  margin: 0.2rem 0 0;
+  padding: 0;
+  list-style: none;
+  background: #fff;
+  color: var(--tekst);
+  border: 1px solid var(--graa-kant-moerk);
+  border-radius: 2px;
+  max-height: 22rem;
+  overflow-y: auto;
+  box-shadow: 0 6px 16px rgba(0, 0, 0, 0.25);
+}
+.forslag li[role="option"] {
+  padding: 0.45rem 0.6rem;
+  cursor: pointer;
+  border-bottom: 1px solid var(--graa-bg);
+  font-size: 0.92rem;
+}
+.forslag li[aria-selected="true"],
+.forslag li:hover {
+  background: #dce8f3;
+}
+.forslag .forslag__kendt {
+  display: inline-block;
+  margin-left: 0.4rem;
+  font-size: 0.72rem;
+  background: var(--ok);
+  color: #fff;
+  padding: 0 0.35rem;
+  border-radius: 2px;
+}
+
+/* --- Kontekstlinje --- */
+.kontekst {
+  background: #dfe6ed;
+  border-bottom: 1px solid var(--graa-kant);
+  padding: 0.4rem 1rem;
+  font-size: 0.85rem;
+  color: var(--tekst-daempet);
+}
+.kontekst strong {
+  color: var(--tekst);
+}
+
+/* --- Layout: fast venstremenu + indhold --- */
+.layout {
+  display: grid;
+  grid-template-columns: 18rem 1fr;
+  align-items: start;
+}
+@media (max-width: 48rem) {
+  .layout {
+    grid-template-columns: 1fr;
+  }
+}
+
+.sidemenu {
+  background: #e3e8ee;
+  border-right: 1px solid var(--graa-kant);
+  min-height: 70vh;
+  padding: 0.75rem;
+}
+.sidemenu__overskrift {
+  font-size: 0.95rem;
+  margin: 0.2rem 0 0.15rem;
+}
+.sidemenu__note {
+  margin: 0 0 0.6rem;
+  font-size: 0.75rem;
+  color: var(--tekst-daempet);
+}
+.ejendomsliste {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+.ejendomsliste li {
+  margin: 0;
+}
+.ejendomsliste button {
+  width: 100%;
+  text-align: left;
+  background: transparent;
+  border: none;
+  border-bottom: 1px solid #d2d9e0;
+  padding: 0.45rem 0.4rem;
+  cursor: pointer;
+  font-size: 0.86rem;
+  color: var(--tekst);
+}
+.ejendomsliste button:hover {
+  background: #d3dde7;
+}
+.ejendomsliste button[aria-current="true"] {
+  background: var(--blaa);
+  color: #fff;
+}
+.ejendomsliste .li-adresse {
+  display: block;
+  font-weight: 600;
+}
+.ejendomsliste .li-part {
+  display: block;
+  font-size: 0.76rem;
+  color: inherit;
+  opacity: 0.85;
+}
+
+/* --- Indhold --- */
+.indhold {
+  padding: 1rem 1.25rem 2rem;
+}
+.tomtilstand {
+  color: var(--tekst-daempet);
+  font-style: italic;
+}
+.ejendomskort__hoved {
+  border-bottom: 2px solid var(--blaa);
+  margin-bottom: 1rem;
+}
+.ejendomskort__adresse {
+  font-size: 1.35rem;
+  margin: 0 0 0.15rem;
+  color: var(--blaa);
+}
+.ejendomskort__kilde {
+  margin: 0 0 0.6rem;
+  font-size: 0.8rem;
+  color: var(--tekst-daempet);
+}
+
+.panel {
+  background: var(--graa-panel);
+  border: 1px solid var(--graa-kant);
+  border-radius: 2px;
+  padding: 0.85rem 1rem;
+  margin-bottom: 1rem;
+}
+.panel h2 {
+  font-size: 1.02rem;
+  margin: 0 0 0.6rem;
+  padding-bottom: 0.3rem;
+  border-bottom: 1px solid var(--graa-bg);
+}
+
+/* Stamdata som beskrivelsesliste i to kolonner */
+.stamdata {
+  display: grid;
+  grid-template-columns: max-content 1fr;
+  gap: 0.25rem 1rem;
+  margin: 0;
+  font-size: 0.9rem;
+}
+.stamdata dt {
+  font-weight: 600;
+  color: var(--tekst-daempet);
+}
+.stamdata dd {
+  margin: 0;
+}
+
+/* Part */
+.partkort {
+  border: 1px solid var(--graa-kant);
+  border-left: 4px solid var(--blaa);
+  padding: 0.5rem 0.75rem;
+  margin-bottom: 0.5rem;
+  font-size: 0.9rem;
+}
+.partkort__navn {
+  font-weight: 700;
+}
+.fiktiv-badge {
+  display: inline-block;
+  margin-left: 0.4rem;
+  font-size: 0.7rem;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  background: var(--advarsel-bg);
+  color: var(--advarsel-tekst);
+  border: 1px solid var(--advarsel-kant);
+  padding: 0 0.3rem;
+  border-radius: 2px;
+  vertical-align: middle;
+}
+.partkort__meta {
+  color: var(--tekst-daempet);
+  font-size: 0.82rem;
+}
+
+/* Datatabel */
+.tabelramme {
+  overflow-x: auto;
+}
+.datatabel {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 0.86rem;
+}
+.datatabel th,
+.datatabel td {
+  border: 1px solid var(--graa-kant);
+  padding: 0.35rem 0.5rem;
+  text-align: left;
+  vertical-align: top;
+}
+.datatabel thead th {
+  background: #dfe6ed;
+  color: var(--tekst);
+}
+.datatabel tbody tr:nth-child(even) {
+  background: #f5f7f9;
+}
+.status-aktiv {
+  color: var(--ok);
+  font-weight: 600;
+}
+.status-inaktiv {
+  color: var(--inaktiv);
+  font-weight: 600;
+}
+
+/* Kort */
+.kort {
+  height: 22rem;
+  border: 1px solid var(--graa-kant-moerk);
+  border-radius: 2px;
+}
+
+/* Footer */
+.footer {
+  background: #d9dde2;
+  border-top: 2px solid var(--graa-kant-moerk);
+  padding: 0.9rem 1.25rem;
+  font-size: 0.78rem;
+  color: var(--tekst-daempet);
+}
+.footer p {
+  margin: 0 0 0.4rem;
+  max-width: 60rem;
+}

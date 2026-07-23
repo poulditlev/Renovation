@@ -1,0 +1,141 @@
+<!DOCTYPE html>
+<html lang="da">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>[TESTMILJØ] Renovation – Sagsbehandlerflade</title>
+    <link
+      rel="stylesheet"
+      href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"
+      integrity="sha256-p4NxAoJBhIIN+hmNHrzRCf9tD/miZyoHS5obTRR9BMY="
+      crossorigin=""
+    />
+    <link rel="stylesheet" href="/styles.css" />
+  </head>
+  <body>
+    <!-- DEL 4: Permanent, fastlåst testmiljø-banner. Kan ikke lukkes. -->
+    <div class="testbanner" role="alert">
+      <strong>TESTMILJØ</strong> — dette er et demonstrationssystem. Data om personer og parter er
+      fiktive. Systemet er ikke et rigtigt kommunalt fagsystem og må ikke anvendes til sagsbehandling.
+    </div>
+
+    <header class="topbar">
+      <div class="topbar__brand">
+        <span class="topbar__logo" aria-hidden="true">♻</span>
+        <span class="topbar__titel">Renovation · Sagsbehandling</span>
+      </div>
+
+      <search class="soegning">
+        <form id="soegeform" role="search" autocomplete="off">
+          <label for="soegefelt">Søg adresse i Roskilde Kommune</label>
+          <div class="soegning__felt">
+            <input
+              id="soegefelt"
+              name="q"
+              type="text"
+              role="combobox"
+              aria-expanded="false"
+              aria-controls="forslagsliste"
+              aria-autocomplete="list"
+              aria-describedby="soegehjaelp soegefejl"
+              placeholder="fx Stændertorvet 2"
+            />
+            <button type="submit" class="knap">Søg</button>
+          </div>
+          <p id="soegehjaelp" class="hjaelptekst">
+            Skriv mindst to tegn. Adressedata hentes fra DAWA. Brug piletasterne til at vælge et forslag.
+          </p>
+          <p id="soegefejl" class="fejlbesked" role="alert" hidden></p>
+          <ul id="forslagsliste" role="listbox" aria-label="Adresseforslag" class="forslag" hidden></ul>
+        </form>
+      </search>
+    </header>
+
+    <!-- Kontekstlinje: viser den valgte ejendom. -->
+    <div class="kontekst" id="kontekst" aria-live="polite">
+      Ingen ejendom valgt. Vælg en ejendom i menuen, eller søg en adresse.
+    </div>
+
+    <div class="layout">
+      <!-- Fast venstremenu -->
+      <nav class="sidemenu" aria-label="Ejendomme">
+        <h2 class="sidemenu__overskrift" id="menu-overskrift">Ejendomme i registret</h2>
+        <p class="sidemenu__note">Fiktive demoejendomme.</p>
+        <ul class="ejendomsliste" id="ejendomsliste" aria-labelledby="menu-overskrift"></ul>
+      </nav>
+
+      <main class="indhold" id="indhold" tabindex="-1">
+        <p id="tomtilstand" class="tomtilstand">
+          Vælg en ejendom i venstremenuen for at se stamdata, part og materiel.
+        </p>
+
+        <article id="ejendomskort" class="ejendomskort" hidden>
+          <header class="ejendomskort__hoved">
+            <h1 id="ejendom-adresse" class="ejendomskort__adresse"></h1>
+            <p id="ejendom-kilde" class="ejendomskort__kilde"></p>
+          </header>
+
+          <section aria-labelledby="stamdata-overskrift" class="panel">
+            <h2 id="stamdata-overskrift">Stamdata</h2>
+            <dl class="stamdata" id="stamdata"></dl>
+          </section>
+
+          <section aria-labelledby="kort-overskrift" class="panel">
+            <h2 id="kort-overskrift">Kort</h2>
+            <div id="kort" class="kort" role="application" aria-label="Interaktivt kort over ejendommens jordstykke og beholderstandpladser"></div>
+            <p class="hjaelptekst">
+              Baggrundskort: OpenStreetMap. Grundens polygon er hentet fra jordstykke-opslaget.
+              Kortet er en supplerende visning; de samme oplysninger findes i stamdata og materieltabellen.
+            </p>
+          </section>
+
+          <section aria-labelledby="part-overskrift" class="panel">
+            <h2 id="part-overskrift">Tilknyttet part</h2>
+            <div id="parter"></div>
+          </section>
+
+          <section aria-labelledby="materiel-overskrift" class="panel">
+            <h2 id="materiel-overskrift">Materiel</h2>
+            <div class="tabelramme">
+              <table class="datatabel">
+                <caption class="visuelt-skjult">Beholdere tilknyttet ejendommen</caption>
+                <thead>
+                  <tr>
+                    <th scope="col">Beholdertype</th>
+                    <th scope="col">Volumen</th>
+                    <th scope="col">Fraktioner</th>
+                    <th scope="col">Standplads</th>
+                    <th scope="col">Opsat</th>
+                    <th scope="col">Fjernet</th>
+                    <th scope="col">Status</th>
+                  </tr>
+                </thead>
+                <tbody id="materieltabel"></tbody>
+              </table>
+            </div>
+            <p id="materiel-tom" class="tomtilstand" hidden>Ingen beholdere registreret på ejendommen.</p>
+          </section>
+        </article>
+      </main>
+    </div>
+
+    <footer class="footer">
+      <p>
+        <strong>TESTMILJØ – forbehold.</strong> Dette er et demonstrationssystem og ikke et rigtigt
+        kommunalt fagsystem. Det må ikke anvendes til sagsbehandling. Oplysninger om personer og parter
+        er opdigtede.
+      </p>
+      <p>
+        Adressedata er offentlige data fra DAWA (Danmarks Adressers Web API). Personoplysninger i
+        systemet er fiktive og indeholder ikke CPR eller andre virkelige persondata.
+      </p>
+    </footer>
+
+    <script
+      src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"
+      integrity="sha256-20nQCchB9co0qIjJZRGuk2/Z9VM+kNiyxNV1lvTlZBo="
+      crossorigin=""
+    ></script>
+    <script src="/app.js"></script>
+  </body>
+</html>

@@ -1,0 +1,33 @@
+{
+  "type": "FeatureCollection",
+  "crs": {
+    "type": "name",
+    "properties": { "name": "EPSG:4326" }
+  },
+  "features": [
+    {
+      "type": "Feature",
+      "geometry": {
+        "type": "Polygon",
+        "coordinates": [
+          [
+            [12.07998, 55.64175],
+            [12.08064, 55.64175],
+            [12.08064, 55.64209],
+            [12.07998, 55.64209],
+            [12.07998, 55.64175]
+          ]
+        ]
+      },
+      "properties": {
+        "featureid": 1234567,
+        "matrikelnr": "210a",
+        "ejerlavkode": 20551,
+        "ejerlavnavn": "Roskilde Bygrunde",
+        "kommunekode": "0265",
+        "regionskode": "1085",
+        "sognekode": "7175"
+      }
+    }
+  ]
+}
