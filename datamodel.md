@@ -233,6 +233,96 @@ Regningen for én ejendom for én periode.
 
 ---
 
+## 3b. Ydelser — to grundlæggende forskellige slags
+
+Der findes to slags ydelser, og de må **ikke** ligge i samme tabel eller samme
+visning. Typen bestemmes af `ydelsestype.afregningsform`, og afregningsformen
+afgør hvilke felter der overhovedet giver mening.
+
+### `ydelsestype`
+Kodeliste over ydelser. `afregningsform` er `PERIODISK` eller `ENGANG`.
+
+| Felt | Type | Note |
+|---|---|---|
+| `id` | uuid | PK |
+| `kode` | text | Unik |
+| `navn` | text | |
+| `afregningsform` | text | `PERIODISK` eller `ENGANG` — bestemmer hvilke felter der gælder |
+| `materieltype_id` | uuid | FK, nullable. For periodiske beholderydelser: takstopslag |
+| `fraktion_id` | uuid | FK, nullable |
+| `standard_enhedspris_oere` | bigint | nullable. Standard styk-pris for engangsydelser. Kan være 0 (gebyrfri) |
+| `hjemmel` | text | Reference til regulativet |
+| `gyldig_fra` / `gyldig_til` | date | |
+
+### `bindingsperiode`
+Kodeliste over tilladte bindingsperioder for løbende ydelser. Ligger som data,
+ikke i koden. Minimum er **6 måneder**; kortere kræver dispensation og skal
+oprettes som en sag. Værdier: `6_MDR` (6), `12_MDR` (12), `24_MDR` (24) og
+`SAESON` (sæson for haveaffald, ca. 8 mdr.).
+
+| Felt | Type | Note |
+|---|---|---|
+| `kode` | text | PK |
+| `navn` | text | |
+| `maaneder` | int | ≥ 6 |
+
+### `loebende_ydelse` (afregningsform `PERIODISK`)
+En løbende ydelse med gyldighedsperiode og bindingsperiode. Indgår i den
+løbende opkrævning via takstberegningen (samme felter som `materiel` læser).
+
+| Felt | Type | Note |
+|---|---|---|
+| `id` | uuid | PK |
+| `ejendom_id` | uuid | FK |
+| `ydelsestype_id` | uuid | FK, `afregningsform = PERIODISK` |
+| `materieltype_id` | uuid | FK. Takstopslag |
+| `bindingsperiode_kode` | text | FK til `bindingsperiode` |
+| `gyldig_fra` / `gyldig_til` | date | `gyldig_til` **beregnes** af startdato + binding og sættes aldrig frit |
+| `forrige_ydelse_id` | uuid | FK, nullable. Ved fornyelse peger den nye række på den gamle |
+| `hjemmel` | text | |
+| `oprettet` / `oprettet_af` | | |
+
+> **Fornyelse.** En ydelse fornyes ved at oprette en **ny** række i forlængelse
+> af den gamle. Den gamle røres aldrig — historikken bevares, så gamle
+> opkrævninger fortsat kan efterprøves. Da `gyldig_til` er eksklusiv, starter
+> den nye periode præcis på den gamles `gyldig_til`: hverken hul eller overlap.
+> En ydelse der ikke fornyes, er udløbet og medregnes ikke efter `gyldig_til`.
+
+### `engangsleverance` (afregningsform `ENGANG`)
+En engangsleverance. **Ingen** periode, binding eller slutdato. Afregnes på
+leveringsdatoen og indgår ikke i den periodiske beregning.
+
+| Felt | Type | Note |
+|---|---|---|
+| `id` | uuid | PK |
+| `ejendom_id` | uuid | FK |
+| `ydelsestype_id` | uuid | FK, `afregningsform = ENGANG` |
+| `leveringsdato` | date | |
+| `antal` | int | |
+| `enhedspris_oere` | bigint | Styk-pris i øre. Kan være 0 (gebyrfri) |
+| `hjemmel` | text | |
+| `oprettet` / `oprettet_af` | | |
+
+### `varsling`
+Registrerer at en part **er varslet** om en løbende ydelses udløb. Gemmes som
+data (et sporbarhedskrav), ikke som en logfil.
+
+| Felt | Type | Note |
+|---|---|---|
+| `id` | uuid | PK |
+| `ydelse_id` | uuid | FK til `loebende_ydelse` |
+| `ejendom_id` | uuid | FK |
+| `part_id` | uuid | FK. Hvem der er varslet |
+| `modtager_email` | text | E-mail fra parten (fiktiv i testmiljøet) |
+| `udloebsdato` | date | Ydelsens `gyldig_til` |
+| `tidspunkt` | timestamptz | Hvornår varslingen blev registreret |
+| `kanal` | text | I testmiljøet altid `EMAIL_DEAKTIVERET` |
+
+> **Afsendelse er slået fra med vilje.** Dette er et testmiljø med fiktive
+> parter. Der sendes aldrig rigtige e-mails; en varsling er kun en dataregistrering.
+
+---
+
 ## 4. Drift
 
 ### `toemning`

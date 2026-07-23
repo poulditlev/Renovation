@@ -34,8 +34,34 @@ og bygges op ét lag ad gangen, jf. modellens byggerækkefølge.
   DAWA's rå svar. **DAWA lukker 17. august 2026** og skal senere erstattes;
   laget er derfor holdt let at udskifte.
 - En simpel sagsbehandlerflade: adressesøgning med autocomplete, ejendommens
-  stamdata, tilknyttet part, materiel i tabel og et Leaflet-kort med grundens
-  polygon og beholdernes standpladser.
+  stamdata, tilknyttet part og et Leaflet-kort med grundens polygon og
+  beholdernes standpladser.
+
+**Lag 3 — Ydelser, engangsleverancer og fornyelse** (`src/ydelser/`, `src/data/ydelser*`, `public/`)
+
+- To grundlæggende forskellige slags ydelser, holdt adskilt i data og visning:
+  - **Løbende ydelse** (`PERIODISK`): gyldighedsperiode + bindingsperiode
+    (6/12/24 mdr. eller sæson, kodeliste i data; minimum 6 mdr., kortere afvises).
+    Slutdatoen beregnes af startdato + binding og indgår i den løbende opkrævning.
+  - **Engangsleverance** (`ENGANG`): leveringsdato + antal + styk-pris (kan være
+    0). Ingen periode; afregnes på leveringsdatoen.
+- Rene funktioner (uden database/UI) i `src/ydelser/fornyelse.ts`: udløbs-/
+  varslingsvindue, statusberegning og **fornyelse** der opretter en ny periode i
+  forlængelse af den gamle — uden hul og uden overlap, og uden at ændre den gamle
+  række (historikken bevares).
+- Brugerfladen: frossen topzone (banner, søgning, kontekstlinje), sammenfoldelige
+  paneler for stamdata og part, to adskilte tabeller (løbende ydelser og
+  engangsleverancer) med status i både farve og tekst, "Forny"-knap for ydelser
+  der udløber snart, og en tilføj-dialog (`<dialog>`) med typevalg, beregnet
+  slutdato og beregnet beløb.
+
+### Varsling er slået fra med vilje
+
+Dette er et **testmiljø med fiktive parter, og der sendes ALDRIG rigtige
+e-mails.** Når en løbende ydelse nærmer sig udløb, kan parten "varsles" — men
+varslingen bliver **kun registreret som data** (modtager, ydelse, udløbsdato,
+tidspunkt) og vist i brugerfladen. Afsendelse er bevidst deaktiveret; se
+`src/ydelser/varsling.ts`, hvor kanalen er markeret `EMAIL_DEAKTIVERET`.
 
 ## Kør appen lokalt
 
