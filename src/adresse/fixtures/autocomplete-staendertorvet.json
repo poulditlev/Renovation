@@ -1,0 +1,44 @@
+[
+  {
+    "type": "adgangsadresse",
+    "tekst": "Stændertorvet 2, 4000 Roskilde",
+    "adgangsadresse": {
+      "id": "0a3f507a-1111-32b8-e044-0003ba298018",
+      "status": 1,
+      "husnummerid": "b8f9d1a0-1111-4d9a-9f2a-0003ba298018",
+      "vejkode": "8060",
+      "vejnavn": "Stændertorvet",
+      "husnr": "2",
+      "supplerendebynavn": null,
+      "postnr": "4000",
+      "postnrnavn": "Roskilde",
+      "stormodtagerpostnr": null,
+      "stormodtagerpostnrnavn": null,
+      "kommunekode": "0265",
+      "x": 12.08031,
+      "y": 55.64192,
+      "href": "https://api.dataforsyningen.dk/adgangsadresser/0a3f507a-1111-32b8-e044-0003ba298018"
+    }
+  },
+  {
+    "type": "adgangsadresse",
+    "tekst": "Stændertorvet 4, 4000 Roskilde",
+    "adgangsadresse": {
+      "id": "0a3f507a-2222-32b8-e044-0003ba298018",
+      "status": 1,
+      "husnummerid": "b8f9d1a0-2222-4d9a-9f2a-0003ba298018",
+      "vejkode": "8060",
+      "vejnavn": "Stændertorvet",
+      "husnr": "4",
+      "supplerendebynavn": null,
+      "postnr": "4000",
+      "postnrnavn": "Roskilde",
+      "stormodtagerpostnr": null,
+      "stormodtagerpostnrnavn": null,
+      "kommunekode": "0265",
+      "x": 12.0805,
+      "y": 55.642,
+      "href": "https://api.dataforsyningen.dk/adgangsadresser/0a3f507a-2222-32b8-e044-0003ba298018"
+    }
+  }
+]
