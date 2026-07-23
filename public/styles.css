@@ -181,16 +181,28 @@ li[role="option"]:focus-visible,
   border-radius: 2px;
 }
 
-/* --- Kontekstlinje --- */
+/* --- Kontekstlinje: den primære visning af den valgte ejendoms adresse --- */
 .kontekst {
   background: #dfe6ed;
   border-bottom: 1px solid var(--graa-kant);
-  padding: 0.4rem 1rem;
+  padding: 0.5rem 1rem;
   font-size: 0.85rem;
   color: var(--tekst-daempet);
 }
-.kontekst strong {
-  color: var(--tekst);
+.kontekst__tom {
+  margin: 0;
+  font-style: italic;
+}
+.kontekst__adresse {
+  margin: 0;
+  font-size: 1.25rem;
+  line-height: 1.2;
+  color: var(--blaa);
+}
+.kontekst__kilde {
+  margin: 0.15rem 0 0;
+  font-size: 0.8rem;
+  color: var(--tekst-daempet);
 }
 
 /* --- Layout: fast venstremenu + indhold --- */
@@ -265,19 +277,49 @@ li[role="option"]:focus-visible,
   color: var(--tekst-daempet);
   font-style: italic;
 }
-.ejendomskort__hoved {
-  border-bottom: 2px solid var(--blaa);
-  margin-bottom: 1rem;
+/* Sammenfoldeligt stamdata-panel (native <details>/<summary>). */
+.panel--foldbar {
+  padding: 0;
 }
-.ejendomskort__adresse {
-  font-size: 1.35rem;
-  margin: 0 0 0.15rem;
+.panel--foldbar > details > *:not(summary) {
+  padding: 0 1rem 0.9rem;
+}
+.panel__summary {
+  cursor: pointer;
+  padding: 0.7rem 1rem;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 0.5rem;
+  list-style: none; /* skjul standardmarkør; vi tegner vores egen nedenfor */
+}
+/* Skjul WebKit/Safari's standardtrekant, så vi kan vise vores egen indikator. */
+.panel__summary::-webkit-details-marker {
+  display: none;
+}
+/* Egen udfoldningsindikator, så det er tydeligt at panelet kan foldes ud. */
+.panel__summary::before {
+  content: "▸";
   color: var(--blaa);
+  font-size: 0.9rem;
 }
-.ejendomskort__kilde {
-  margin: 0 0 0.6rem;
-  font-size: 0.8rem;
+details[open] > .panel__summary::before {
+  content: "▾";
+}
+.panel__summary:hover {
+  background: #f0f3f6;
+}
+.panel__titel {
+  font-size: 1.02rem;
+  font-weight: 700;
+}
+.panel__adresse {
+  font-size: 0.9rem;
   color: var(--tekst-daempet);
+}
+details[open] > .panel__summary {
+  border-bottom: 1px solid var(--graa-bg);
+  margin-bottom: 0.6rem;
 }
 
 .panel {
