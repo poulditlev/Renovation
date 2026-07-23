@@ -15,6 +15,7 @@ export interface Ejendom {
   adresse_uuid: string;
   adressetekst: string;
   kommunekode: string;
+  kommunenavn: string | null;
   matrikelnummer: string;
   ejerlavskode: string;
   ejerlavsnavn: string | null;

@@ -98,24 +98,29 @@ function visEjendom(data, kilde) {
   el("tomtilstand").hidden = true;
   el("ejendomskort").hidden = false;
 
-  el("ejendom-adresse").textContent = e.adressetekst || "(uden adressetekst)";
-  el("ejendom-kilde").textContent =
+  // Kontekstlinjen er den ENE primære visning af adressen (h1).
+  el("kontekst-tom").hidden = true;
+  el("kontekst-valgt").hidden = false;
+  el("valgt-adresse").textContent = e.adressetekst || "(uden adressetekst)";
+  el("valgt-kilde").textContent =
     kilde === "live"
       ? "Kilde: live-opslag i DAWA. Ejendommen er ikke oprettet i registret, så der vises ingen part eller materiel."
       : "Kilde: register (fiktiv demoejendom).";
 
-  // Kontekstlinje
-  el("kontekst").innerHTML =
-    `Valgt ejendom: <strong>${escapeHtml(e.adressetekst)}</strong> · BFE ${escapeHtml(e.bfe_nummer)}`;
+  // Summary-linjen viser adressen, så man kan se hvad det foldede panel handler om.
+  el("stamdata-adresse").textContent = e.adressetekst || "";
+  // Fold stamdata SAMMEN som udgangspunkt ved hvert nyt opslag.
+  el("stamdata-details").open = false;
 
-  // Stamdata
+  // Stamdata: kun tekniske felter. Adressen gentages ikke (den står i kontekstlinjen).
+  const kommune =
+    e.kommunenavn ? `${e.kommunekode} ${e.kommunenavn}` : e.kommunekode || "—";
   const stamdata = el("stamdata");
   stamdata.innerHTML = "";
   const felter = [
-    ["Adresse", e.adressetekst],
     ["Adresse-UUID", e.adresse_uuid],
     ["BFE-nummer", e.bfe_nummer],
-    ["Kommunekode", e.kommunekode],
+    ["Kommune", kommune],
     ["Matrikelnummer", e.matrikelnummer || "—"],
     ["Ejerlav", e.ejerlavsnavn ? `${e.ejerlavsnavn} (${e.ejerlavskode})` : e.ejerlavskode || "—"],
     ["Anvendelseskode", e.anvendelseskode || "—"],
@@ -337,6 +342,7 @@ async function vaelgForslag(i) {
         tekst: valgt.adressetekst,
         adresse_uuid: valgt.adresse_uuid || "",
         husnummer_uuid: valgt.husnummer_uuid || "",
+        kommune_navn: valgt.kommune_navn || "",
         lat: valgt.latitude != null ? String(valgt.latitude) : "",
         lng: valgt.longitude != null ? String(valgt.longitude) : "",
       });

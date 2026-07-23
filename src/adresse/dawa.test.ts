@@ -39,6 +39,7 @@ describe('parseAutocomplete', () => {
       postnr: '4000',
       postnrnavn: 'Roskilde',
       kommunekode: '0265',
+      kommune_navn: 'Roskilde',
       latitude: 55.64192,
       longitude: 12.08031,
     });

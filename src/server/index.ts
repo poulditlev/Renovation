@@ -101,6 +101,7 @@ async function haandterAdresseopslag(
   const husnummerUuid = params.get('husnummer_uuid');
   const lat = params.get('lat');
   const lng = params.get('lng');
+  const kommuneNavn = params.get('kommune_navn');
 
   try {
     const jordstykke = husnummerUuid ? await hentJordstykke(husnummerUuid) : null;
@@ -110,6 +111,7 @@ async function haandterAdresseopslag(
       adresse_uuid: adresseUuid,
       adressetekst: tekst,
       kommunekode: '0265',
+      kommunenavn: kommuneNavn && kommuneNavn.length > 0 ? kommuneNavn : null,
       matrikelnummer: jordstykke?.matrikelnummer ?? '',
       ejerlavskode: jordstykke?.ejerlavskode ?? '',
       ejerlavsnavn: jordstykke?.ejerlavsnavn ?? null,

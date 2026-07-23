@@ -274,6 +274,7 @@ raekker.forEach((rad, i) => {
     adresse_uuid: `demo-adr-${nr}`,
     adressetekst: rad.adressetekst,
     kommunekode: KOMMUNEKODE_ROSKILDE,
+    kommunenavn: 'Roskilde',
     matrikelnummer: rad.matrikelnummer,
     ejerlavskode: rad.ejerlavskode,
     ejerlavsnavn: rad.ejerlavsnavn,

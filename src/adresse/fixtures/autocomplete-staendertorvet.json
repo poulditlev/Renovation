@@ -15,6 +15,7 @@
       "stormodtagerpostnr": null,
       "stormodtagerpostnrnavn": null,
       "kommunekode": "0265",
+      "kommune": { "kode": "0265", "navn": "Roskilde" },
       "x": 12.08031,
       "y": 55.64192,
       "href": "https://api.dataforsyningen.dk/adgangsadresser/0a3f507a-1111-32b8-e044-0003ba298018"
@@ -36,6 +37,7 @@
       "stormodtagerpostnr": null,
       "stormodtagerpostnrnavn": null,
       "kommunekode": "0265",
+      "kommune": { "kode": "0265", "navn": "Roskilde" },
       "x": 12.0805,
       "y": 55.642,
       "href": "https://api.dataforsyningen.dk/adgangsadresser/0a3f507a-2222-32b8-e044-0003ba298018"

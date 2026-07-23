@@ -28,6 +28,7 @@ export interface AdresseForslag {
   postnr: string;
   postnrnavn: string;
   kommunekode: string;
+  kommune_navn: string | null; // fra DAWA-feltet kommune.navn
   latitude: number | null;
   longitude: number | null;
 }
@@ -86,6 +87,7 @@ export function parseAutocomplete(raw: unknown): AdresseForslag[] {
 
     const husnummerUuid =
       somTekst(adg['husnummerid']) ?? somTekst((somObjekt(adg['husnummer']) ?? {})['id']) ?? null;
+    const kommuneNavn = somTekst((somObjekt(adg['kommune']) ?? {})['navn']);
 
     forslag.push({
       adresse_uuid: id,
@@ -96,6 +98,7 @@ export function parseAutocomplete(raw: unknown): AdresseForslag[] {
       postnr: somTekst(adg['postnr']) ?? '',
       postnrnavn: somTekst(adg['postnrnavn']) ?? '',
       kommunekode: somTekst(adg['kommunekode']) ?? '',
+      kommune_navn: kommuneNavn,
       latitude: somTal(adg['y']),
       longitude: somTal(adg['x']),
     });

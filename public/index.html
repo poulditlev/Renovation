@@ -3,6 +3,10 @@
   <head>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <!-- Neutral farve på browserens egen flade (fx Safari-topbjælken på iOS),
+         så det gule testbanner ikke farver hele browserrammen. Banneret selv
+         er uændret. -->
+    <meta name="theme-color" content="#f4f6f8" />
     <title>[TESTMILJØ] Renovation – Sagsbehandlerflade</title>
     <link
       rel="stylesheet"
@@ -51,9 +55,15 @@
       </search>
     </header>
 
-    <!-- Kontekstlinje: viser den valgte ejendom. -->
-    <div class="kontekst" id="kontekst" aria-live="polite">
-      Ingen ejendom valgt. Vælg en ejendom i menuen, eller søg en adresse.
+    <!-- Kontekstlinje: den ENE primære visning af den valgte ejendoms adresse. -->
+    <div class="kontekst" id="kontekst" role="region" aria-label="Valgt ejendom" aria-live="polite">
+      <p id="kontekst-tom" class="kontekst__tom">
+        Ingen ejendom valgt. Vælg en ejendom i menuen, eller søg en adresse.
+      </p>
+      <div id="kontekst-valgt" class="kontekst__valgt" hidden>
+        <h1 id="valgt-adresse" class="kontekst__adresse"></h1>
+        <p id="valgt-kilde" class="kontekst__kilde"></p>
+      </div>
     </div>
 
     <div class="layout">
@@ -70,14 +80,16 @@
         </p>
 
         <article id="ejendomskort" class="ejendomskort" hidden>
-          <header class="ejendomskort__hoved">
-            <h1 id="ejendom-adresse" class="ejendomskort__adresse"></h1>
-            <p id="ejendom-kilde" class="ejendomskort__kilde"></p>
-          </header>
-
-          <section aria-labelledby="stamdata-overskrift" class="panel">
-            <h2 id="stamdata-overskrift">Stamdata</h2>
-            <dl class="stamdata" id="stamdata"></dl>
+          <!-- Stamdata er sammenfoldeligt (foldet SAMMEN som udgangspunkt).
+               <details>/<summary> giver tastatur- og skærmlæserstøtte gratis. -->
+          <section class="panel panel--foldbar" aria-labelledby="stamdata-summary">
+            <details id="stamdata-details">
+              <summary id="stamdata-summary" class="panel__summary">
+                <span class="panel__titel">Stamdata</span>
+                <span class="panel__adresse" id="stamdata-adresse"></span>
+              </summary>
+              <dl class="stamdata" id="stamdata"></dl>
+            </details>
           </section>
 
           <section aria-labelledby="kort-overskrift" class="panel">
@@ -85,7 +97,7 @@
             <div id="kort" class="kort" role="application" aria-label="Interaktivt kort over ejendommens jordstykke og beholderstandpladser"></div>
             <p class="hjaelptekst">
               Baggrundskort: OpenStreetMap. Grundens polygon er hentet fra jordstykke-opslaget.
-              Kortet er en supplerende visning; de samme oplysninger findes i stamdata og materieltabellen.
+              Kortet er en supplerende visning.
             </p>
           </section>
 
