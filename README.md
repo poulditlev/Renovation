@@ -55,6 +55,19 @@ i søgefeltet øverst.
   internettet. Seed-ejendommene virker uden netadgang (de har cachede
   polygoner); mangler netadgang, vises en pæn fejl i stedet.
 
+## Hosting (fx Render)
+
+Serveren læser porten fra `PORT` og lytter på alle interfaces, så den kan
+hostes uden ændringer. Standardopsætning:
+
+- **Build command:** `npm install`
+- **Start command:** `npm start`
+
+`tsx` (som kører TypeScript direkte) ligger bevidst i `dependencies`, ikke
+`devDependencies`, så serveren også kan starte når hosten sætter
+`NODE_ENV=production` og springer devDependencies over. Slå auto-deploy til på
+`main`, så nye merges deployes automatisk.
+
 ## Kør testene
 
 ```bash
