@@ -5,7 +5,16 @@ import { dirname, join, normalize } from 'node:path';
 import type { Ejendom } from '../domain/index.js';
 import { alleEjendomme, findEjendom, parterForEjendom } from '../data/store.js';
 import { byggEjendomVisning } from './ejendomVisning.js';
+import { byggYdelserVisning } from './ydelserVisning.js';
 import { DawaFejl, hentJordstykke, soegAdresser, type AdresseForslag } from '../adresse/dawa.js';
+import { bindingsperioder, ydelsestyper } from '../ydelser/index.js';
+import { takster } from '../klassifikationer/index.js';
+import {
+  fornyLoebende,
+  registrerVarsling,
+  tilfoejEngangs,
+  tilfoejLoebende,
+} from '../data/ydelserStore.js';
 
 // Simpel HTTP-server for sagsbehandler-brugerfladen. Serverer de statiske filer
 // i public/ og et lille JSON-API. Al DAWA-kommunikation går gennem det
@@ -143,6 +152,127 @@ function haandterDawaFejl(res: ServerResponse, e: unknown): void {
   sendJson(res, 500, { fejl: 'Uventet serverfejl.', detalje: (e as Error).message });
 }
 
+// --- Ydelser (løbende + engangs), fornyelse og varsling ----------------------
+
+/** GET /api/ejendomme/:id/ydelser - to adskilte lister + varslinger. */
+function haandterYdelser(res: ServerResponse, ejendomId: string): void {
+  if (!findEjendom(ejendomId)) {
+    sendJson(res, 404, { fejl: 'Ejendommen findes ikke i registret.' });
+    return;
+  }
+  sendJson(res, 200, byggYdelserVisning(ejendomId));
+}
+
+/** GET /api/ydelseskatalog - kodelister til tilføj-dialogen. */
+function haandterYdelseskatalog(res: ServerResponse): void {
+  sendJson(res, 200, {
+    ydelsestyper,
+    bindingsperioder,
+    // Kun det nødvendige fra takster, så dialogen kan vise den beregnede pris.
+    takster: takster.map((t) => ({
+      id: t.id,
+      materieltype_id: t.materieltype_id,
+      beloeb_aarligt_oere: t.beloeb_aarligt_oere,
+      gyldig_fra: t.gyldig_fra,
+      gyldig_til: t.gyldig_til,
+    })),
+  });
+}
+
+/** Læser hele request-kroppen og parser den som JSON. */
+async function laesJson(req: IncomingMessage): Promise<Record<string, unknown>> {
+  const stykker: Buffer[] = [];
+  for await (const stykke of req) {
+    stykker.push(stykke as Buffer);
+    // Simpel beskyttelse mod for store kroppe.
+    if (Buffer.concat(stykker).length > 1_000_000) {
+      throw new Error('Kroppen er for stor.');
+    }
+  }
+  const raa = Buffer.concat(stykker).toString('utf8').trim();
+  if (raa.length === 0) return {};
+  return JSON.parse(raa) as Record<string, unknown>;
+}
+
+function somStreng(v: unknown): string {
+  return typeof v === 'string' ? v : '';
+}
+
+/** POST /api/ejendomme/:id/ydelser/loebende */
+async function haandterTilfoejLoebende(req: IncomingMessage, res: ServerResponse, ejendomId: string): Promise<void> {
+  if (!findEjendom(ejendomId)) {
+    sendJson(res, 404, { fejl: 'Ejendommen findes ikke i registret.' });
+    return;
+  }
+  try {
+    const krop = await laesJson(req);
+    const ny = tilfoejLoebende({
+      ejendom_id: ejendomId,
+      ydelsestype_id: somStreng(krop['ydelsestype_id']),
+      materieltype_id: somStreng(krop['materieltype_id']),
+      bindingsperiode_kode: somStreng(krop['bindingsperiode_kode']),
+      startdato: somStreng(krop['startdato']),
+      hjemmel: somStreng(krop['hjemmel']),
+    });
+    sendJson(res, 201, ny);
+  } catch (e) {
+    // Fx binding under 6 måneder afvises af de rene funktioner.
+    sendJson(res, 400, { fejl: (e as Error).message });
+  }
+}
+
+/** POST /api/ejendomme/:id/ydelser/engangs */
+async function haandterTilfoejEngangs(req: IncomingMessage, res: ServerResponse, ejendomId: string): Promise<void> {
+  if (!findEjendom(ejendomId)) {
+    sendJson(res, 404, { fejl: 'Ejendommen findes ikke i registret.' });
+    return;
+  }
+  try {
+    const krop = await laesJson(req);
+    const antal = Number(krop['antal']);
+    const enhedspris = Number(krop['enhedspris_oere']);
+    if (!Number.isInteger(antal) || antal < 1) {
+      throw new Error('Antal skal være et positivt heltal.');
+    }
+    if (!Number.isInteger(enhedspris) || enhedspris < 0) {
+      throw new Error('Styk-pris skal være et heltal i øre og kan ikke være negativ.');
+    }
+    const ny = tilfoejEngangs({
+      ejendom_id: ejendomId,
+      ydelsestype_id: somStreng(krop['ydelsestype_id']),
+      leveringsdato: somStreng(krop['leveringsdato']),
+      antal,
+      enhedspris_oere: enhedspris,
+      hjemmel: somStreng(krop['hjemmel']),
+    });
+    sendJson(res, 201, ny);
+  } catch (e) {
+    sendJson(res, 400, { fejl: (e as Error).message });
+  }
+}
+
+/** POST /api/ydelser/loebende/:id/forny */
+async function haandterForny(req: IncomingMessage, res: ServerResponse, ydelseId: string): Promise<void> {
+  try {
+    const krop = await laesJson(req);
+    const binding = somStreng(krop['bindingsperiode_kode']);
+    const ny = fornyLoebende(ydelseId, binding.length > 0 ? binding : undefined);
+    sendJson(res, 201, ny);
+  } catch (e) {
+    sendJson(res, 400, { fejl: (e as Error).message });
+  }
+}
+
+/** POST /api/ydelser/loebende/:id/varsling - registrerer varsling (sender IKKE e-mail). */
+function haandterVarsling(res: ServerResponse, ydelseId: string): void {
+  try {
+    const varsling = registrerVarsling(ydelseId);
+    sendJson(res, 201, varsling);
+  } catch (e) {
+    sendJson(res, 400, { fejl: (e as Error).message });
+  }
+}
+
 // --- Statiske filer ----------------------------------------------------------
 
 async function serverStatiskFil(res: ServerResponse, urlSti: string): Promise<void> {
@@ -170,16 +300,41 @@ async function serverStatiskFil(res: ServerResponse, urlSti: string): Promise<vo
 async function haandter(req: IncomingMessage, res: ServerResponse): Promise<void> {
   const url = new URL(req.url ?? '/', `http://${req.headers.host ?? 'localhost'}`);
   const sti = url.pathname;
+  const metode = req.method ?? 'GET';
 
-  if (req.method !== 'GET') {
-    sendJson(res, 405, { fejl: 'Kun GET understøttes.' });
+  // --- POST-ruter (mutationer) ---
+  if (metode === 'POST') {
+    const tilfLoebende = sti.match(/^\/api\/ejendomme\/([^/]+)\/ydelser\/loebende$/);
+    if (tilfLoebende) return haandterTilfoejLoebende(req, res, decodeURIComponent(tilfLoebende[1] as string));
+
+    const tilfEngangs = sti.match(/^\/api\/ejendomme\/([^/]+)\/ydelser\/engangs$/);
+    if (tilfEngangs) return haandterTilfoejEngangs(req, res, decodeURIComponent(tilfEngangs[1] as string));
+
+    const fornyMatch = sti.match(/^\/api\/ydelser\/loebende\/([^/]+)\/forny$/);
+    if (fornyMatch) return haandterForny(req, res, decodeURIComponent(fornyMatch[1] as string));
+
+    const varslMatch = sti.match(/^\/api\/ydelser\/loebende\/([^/]+)\/varsling$/);
+    if (varslMatch) return haandterVarsling(res, decodeURIComponent(varslMatch[1] as string));
+
+    sendJson(res, 404, { fejl: 'Ukendt API-endpoint.' });
     return;
   }
 
+  if (metode !== 'GET') {
+    sendJson(res, 405, { fejl: 'Kun GET og POST understøttes.' });
+    return;
+  }
+
+  // --- GET-ruter ---
   if (sti === '/api/ejendomme') return haandterEjendomsliste(res);
+
+  const ydelserMatch = sti.match(/^\/api\/ejendomme\/([^/]+)\/ydelser$/);
+  if (ydelserMatch) return haandterYdelser(res, decodeURIComponent(ydelserMatch[1] as string));
 
   const ejendomMatch = sti.match(/^\/api\/ejendomme\/([^/]+)$/);
   if (ejendomMatch) return haandterEjendom(res, decodeURIComponent(ejendomMatch[1] as string));
+
+  if (sti === '/api/ydelseskatalog') return haandterYdelseskatalog(res);
 
   if (sti === '/api/adresse/soeg') return haandterAdressesoeg(res, url.searchParams.get('q') ?? '');
 

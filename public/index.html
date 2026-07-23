@@ -17,52 +17,57 @@
     <link rel="stylesheet" href="/styles.css" />
   </head>
   <body>
-    <!-- DEL 4: Permanent, fastlåst testmiljø-banner. Kan ikke lukkes. -->
-    <div class="testbanner" role="alert">
-      <strong>TESTMILJØ</strong> — dette er et demonstrationssystem. Data om personer og parter er
-      fiktive. Systemet er ikke et rigtigt kommunalt fagsystem og må ikke anvendes til sagsbehandling.
-    </div>
-
-    <header class="topbar">
-      <div class="topbar__brand">
-        <span class="topbar__logo" aria-hidden="true">♻</span>
-        <span class="topbar__titel">Renovation · Sagsbehandling</span>
+    <!-- DEL 4: Frossen topzone. Testbanner, søgning og kontekstlinje er
+         fastlåst øverst (position: sticky) og scroller IKKE med. Alt derunder
+         scroller. -->
+    <div class="topzone">
+      <!-- Permanent, fastlåst testmiljø-banner. Kan ikke lukkes. -->
+      <div class="testbanner" role="alert">
+        <strong>TESTMILJØ</strong> — dette er et demonstrationssystem. Data om personer og parter er
+        fiktive. Systemet er ikke et rigtigt kommunalt fagsystem og må ikke anvendes til sagsbehandling.
       </div>
 
-      <search class="soegning">
-        <form id="soegeform" role="search" autocomplete="off">
-          <label for="soegefelt">Søg adresse i Roskilde Kommune</label>
-          <div class="soegning__felt">
-            <input
-              id="soegefelt"
-              name="q"
-              type="text"
-              role="combobox"
-              aria-expanded="false"
-              aria-controls="forslagsliste"
-              aria-autocomplete="list"
-              aria-describedby="soegehjaelp soegefejl"
-              placeholder="fx Stændertorvet 2"
-            />
-            <button type="submit" class="knap">Søg</button>
-          </div>
-          <p id="soegehjaelp" class="hjaelptekst">
-            Skriv mindst to tegn. Adressedata hentes fra DAWA. Brug piletasterne til at vælge et forslag.
-          </p>
-          <p id="soegefejl" class="fejlbesked" role="alert" hidden></p>
-          <ul id="forslagsliste" role="listbox" aria-label="Adresseforslag" class="forslag" hidden></ul>
-        </form>
-      </search>
-    </header>
+      <header class="topbar">
+        <div class="topbar__brand">
+          <span class="topbar__logo" aria-hidden="true">♻</span>
+          <span class="topbar__titel">Renovation · Sagsbehandling</span>
+        </div>
 
-    <!-- Kontekstlinje: den ENE primære visning af den valgte ejendoms adresse. -->
-    <div class="kontekst" id="kontekst" role="region" aria-label="Valgt ejendom" aria-live="polite">
-      <p id="kontekst-tom" class="kontekst__tom">
-        Ingen ejendom valgt. Vælg en ejendom i menuen, eller søg en adresse.
-      </p>
-      <div id="kontekst-valgt" class="kontekst__valgt" hidden>
-        <h1 id="valgt-adresse" class="kontekst__adresse"></h1>
-        <p id="valgt-kilde" class="kontekst__kilde"></p>
+        <search class="soegning">
+          <form id="soegeform" role="search" autocomplete="off">
+            <label for="soegefelt">Søg adresse i Roskilde Kommune</label>
+            <div class="soegning__felt">
+              <input
+                id="soegefelt"
+                name="q"
+                type="text"
+                role="combobox"
+                aria-expanded="false"
+                aria-controls="forslagsliste"
+                aria-autocomplete="list"
+                aria-describedby="soegehjaelp soegefejl"
+                placeholder="fx Stændertorvet 2"
+              />
+              <button type="submit" class="knap">Søg</button>
+            </div>
+            <p id="soegehjaelp" class="hjaelptekst">
+              Skriv mindst to tegn. Adressedata hentes fra DAWA. Brug piletasterne til at vælge et forslag.
+            </p>
+            <p id="soegefejl" class="fejlbesked" role="alert" hidden></p>
+            <ul id="forslagsliste" role="listbox" aria-label="Adresseforslag" class="forslag" hidden></ul>
+          </form>
+        </search>
+      </header>
+
+      <!-- Kontekstlinje: viser adresse, BFE, kommune og part for valgt ejendom. -->
+      <div class="kontekst" id="kontekst" role="region" aria-label="Valgt ejendom" aria-live="polite">
+        <p id="kontekst-tom" class="kontekst__tom">
+          Ingen ejendom valgt. Vælg en ejendom i listen, eller søg en adresse.
+        </p>
+        <div id="kontekst-valgt" class="kontekst__valgt" hidden>
+          <h1 id="valgt-adresse" class="kontekst__adresse"></h1>
+          <p id="valgt-meta" class="kontekst__meta"></p>
+        </div>
       </div>
     </div>
 
@@ -85,32 +90,89 @@
             </details>
           </section>
 
-          <!-- Part og materiel ligger øverst (lige under adressen); kortet er nederst. -->
-          <section aria-labelledby="part-overskrift" class="panel">
-            <h2 id="part-overskrift">Tilknyttet part</h2>
-            <div id="parter"></div>
+          <!-- Tilknyttet part er også sammenfoldeligt (foldet SAMMEN som udgangspunkt). -->
+          <section class="panel panel--foldbar" aria-labelledby="part-summary">
+            <details id="part-details">
+              <summary id="part-summary" class="panel__summary">
+                <span class="panel__titel">Tilknyttet part</span>
+                <span class="panel__adresse" id="part-navn-summary"></span>
+              </summary>
+              <div id="parter"></div>
+            </details>
           </section>
 
-          <section aria-labelledby="materiel-overskrift" class="panel">
-            <h2 id="materiel-overskrift">Materiel</h2>
+          <!-- Løbende ydelser og engangsleverancer i to ADSKILTE tabeller. -->
+          <section aria-labelledby="loebende-overskrift" class="panel">
+            <div class="panel__hoved">
+              <h2 id="loebende-overskrift">Løbende ydelser</h2>
+              <button type="button" class="knap knap--tilfoej" data-tilfoej="loebende">+ Tilføj</button>
+            </div>
             <div class="tabelramme">
               <table class="datatabel">
-                <caption class="visuelt-skjult">Beholdere tilknyttet ejendommen</caption>
+                <caption class="visuelt-skjult">Løbende (periodiske) ydelser på ejendommen</caption>
                 <thead>
                   <tr>
-                    <th scope="col">Beholdertype</th>
-                    <th scope="col">Volumen</th>
-                    <th scope="col">Fraktioner</th>
-                    <th scope="col">Standplads</th>
-                    <th scope="col">Opsat</th>
-                    <th scope="col">Fjernet</th>
+                    <th scope="col">Ydelse</th>
+                    <th scope="col">Fraktion</th>
+                    <th scope="col">Periode</th>
+                    <th scope="col">Binding</th>
+                    <th scope="col">Årlig takst</th>
                     <th scope="col">Status</th>
+                    <th scope="col">Handling</th>
                   </tr>
                 </thead>
-                <tbody id="materieltabel"></tbody>
+                <tbody id="loebende-tabel"></tbody>
               </table>
             </div>
-            <p id="materiel-tom" class="tomtilstand" hidden>Ingen beholdere registreret på ejendommen.</p>
+            <p id="loebende-tom" class="tomtilstand" hidden>Ingen løbende ydelser registreret.</p>
+          </section>
+
+          <section aria-labelledby="engangs-overskrift" class="panel">
+            <div class="panel__hoved">
+              <h2 id="engangs-overskrift">Engangsleverancer</h2>
+              <button type="button" class="knap knap--tilfoej" data-tilfoej="engangs">+ Tilføj</button>
+            </div>
+            <div class="tabelramme">
+              <table class="datatabel">
+                <caption class="visuelt-skjult">Engangsleverancer på ejendommen</caption>
+                <thead>
+                  <tr>
+                    <th scope="col">Ydelse</th>
+                    <th scope="col">Antal</th>
+                    <th scope="col">Leveringsdato</th>
+                    <th scope="col">Pris</th>
+                    <th scope="col">Status</th>
+                    <th scope="col">Handling</th>
+                  </tr>
+                </thead>
+                <tbody id="engangs-tabel"></tbody>
+              </table>
+            </div>
+            <p id="engangs-tom" class="tomtilstand" hidden>Ingen engangsleverancer registreret.</p>
+          </section>
+
+          <!-- Varslinger gemt som data (sporbarhed). Ingen e-mail sendes. -->
+          <section aria-labelledby="varsling-overskrift" class="panel">
+            <h2 id="varsling-overskrift">Varslinger</h2>
+            <p class="hjaelptekst">
+              TESTMILJØ: der sendes ingen e-mails. Varslinger registreres kun som data, så det kan ses
+              hvem der er varslet hvornår om hvad.
+            </p>
+            <div class="tabelramme">
+              <table class="datatabel">
+                <caption class="visuelt-skjult">Registrerede varslinger</caption>
+                <thead>
+                  <tr>
+                    <th scope="col">Modtager (e-mail)</th>
+                    <th scope="col">Udløbsdato</th>
+                    <th scope="col">Varslet</th>
+                    <th scope="col">Kanal</th>
+                  </tr>
+                </thead>
+                <tbody id="varsling-tabel"></tbody>
+              </table>
+            </div>
+            <p id="varsling-tom" class="tomtilstand" hidden>Ingen varslinger registreret.</p>
           </section>
 
           <section aria-labelledby="kort-overskrift" class="panel">
@@ -143,6 +205,72 @@
         systemet er fiktive og indeholder ikke CPR eller andre virkelige persondata.
       </p>
     </footer>
+
+    <!-- Tilføj-dialog: ét <dialog> med typevalg der skifter hvilke felter der vises. -->
+    <dialog id="tilfoej-dialog" class="dialog" aria-labelledby="dialog-titel">
+      <form method="dialog" id="tilfoej-form" class="dialog__form">
+        <h2 id="dialog-titel" class="dialog__titel">Tilføj ydelse</h2>
+
+        <fieldset class="dialog__type">
+          <legend>Type</legend>
+          <label><input type="radio" name="ydelsestype" value="loebende" checked /> Løbende ydelse</label>
+          <label><input type="radio" name="ydelsestype" value="engangs" /> Engangsleverance</label>
+        </fieldset>
+
+        <!-- Felter for LØBENDE ydelse -->
+        <div id="felter-loebende" class="dialog__felter">
+          <p class="dialog__felt">
+            <label for="d-loebende-type">Ydelse</label>
+            <select id="d-loebende-type" required></select>
+          </p>
+          <p class="dialog__felt">
+            <label for="d-binding">Bindingsperiode</label>
+            <select id="d-binding" required></select>
+          </p>
+          <p class="dialog__felt">
+            <label for="d-startdato">Startdato</label>
+            <input type="date" id="d-startdato" required />
+          </p>
+          <p class="dialog__felt">
+            <label for="d-slutdato">Beregnet slutdato</label>
+            <input type="date" id="d-slutdato" readonly aria-describedby="d-slutdato-hjaelp" />
+            <span id="d-slutdato-hjaelp" class="hjaelptekst">Beregnes ud fra startdato + bindingsperiode og kan ikke ændres.</span>
+          </p>
+        </div>
+
+        <!-- Felter for ENGANGSLEVERANCE -->
+        <div id="felter-engangs" class="dialog__felter" hidden>
+          <p class="dialog__felt">
+            <label for="d-engangs-type">Ydelse</label>
+            <select id="d-engangs-type" required></select>
+          </p>
+          <p class="dialog__felt">
+            <label for="d-antal">Antal</label>
+            <input type="number" id="d-antal" min="1" step="1" value="1" required />
+          </p>
+          <p class="dialog__felt">
+            <label for="d-leveringsdato">Ønsket leveringsdato</label>
+            <input type="date" id="d-leveringsdato" required />
+          </p>
+        </div>
+
+        <!-- Obligatorisk hjemmel for begge typer -->
+        <p class="dialog__felt">
+          <label for="d-hjemmel">Hjemmel (reference til regulativet)</label>
+          <input type="text" id="d-hjemmel" required aria-describedby="d-hjemmel-fejl" />
+          <span id="d-hjemmel-fejl" class="fejlbesked" role="alert" hidden></span>
+        </p>
+
+        <p id="dialog-fejl" class="fejlbesked" role="alert" hidden></p>
+
+        <p class="dialog__beloeb">Beregnet beløb: <strong id="d-beloeb">0,00 kr.</strong></p>
+
+        <div class="dialog__knapper">
+          <button type="button" class="knap knap--sekundaer" id="dialog-annuller">Annullér</button>
+          <button type="submit" class="knap" id="dialog-gem">Tilføj</button>
+        </div>
+      </form>
+    </dialog>
 
     <script
       src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"
