@@ -67,16 +67,9 @@
     </div>
 
     <div class="layout">
-      <!-- Fast venstremenu -->
-      <nav class="sidemenu" aria-label="Ejendomme">
-        <h2 class="sidemenu__overskrift" id="menu-overskrift">Ejendomme i registret</h2>
-        <p class="sidemenu__note">Fiktive demoejendomme.</p>
-        <ul class="ejendomsliste" id="ejendomsliste" aria-labelledby="menu-overskrift"></ul>
-      </nav>
-
       <main class="indhold" id="indhold" tabindex="-1">
         <p id="tomtilstand" class="tomtilstand">
-          Vælg en ejendom i venstremenuen for at se stamdata, part og materiel.
+          Vælg en ejendom i listen til højre for at se stamdata, part og materiel.
         </p>
 
         <article id="ejendomskort" class="ejendomskort" hidden>
@@ -92,15 +85,7 @@
             </details>
           </section>
 
-          <section aria-labelledby="kort-overskrift" class="panel">
-            <h2 id="kort-overskrift">Kort</h2>
-            <div id="kort" class="kort" role="application" aria-label="Interaktivt kort over ejendommens jordstykke og beholderstandpladser"></div>
-            <p class="hjaelptekst">
-              Baggrundskort: OpenStreetMap. Grundens polygon er hentet fra jordstykke-opslaget.
-              Kortet er en supplerende visning.
-            </p>
-          </section>
-
+          <!-- Part og materiel ligger øverst (lige under adressen); kortet er nederst. -->
           <section aria-labelledby="part-overskrift" class="panel">
             <h2 id="part-overskrift">Tilknyttet part</h2>
             <div id="parter"></div>
@@ -127,8 +112,24 @@
             </div>
             <p id="materiel-tom" class="tomtilstand" hidden>Ingen beholdere registreret på ejendommen.</p>
           </section>
+
+          <section aria-labelledby="kort-overskrift" class="panel">
+            <h2 id="kort-overskrift">Kort</h2>
+            <div id="kort" class="kort" role="application" aria-label="Interaktivt kort over ejendommens jordstykke og beholderstandpladser"></div>
+            <p class="hjaelptekst">
+              Baggrundskort: OpenStreetMap. Grundens polygon er hentet fra jordstykke-opslaget.
+              Kortet er en supplerende visning.
+            </p>
+          </section>
         </article>
       </main>
+
+      <!-- Fast højremenu med de fordefinerede (fiktive) ejendomme. -->
+      <nav class="sidemenu" aria-label="Ejendomme">
+        <h2 class="sidemenu__overskrift" id="menu-overskrift">Ejendomme i registret</h2>
+        <p class="sidemenu__note">Fiktive demoejendomme.</p>
+        <ul class="ejendomsliste" id="ejendomsliste" aria-labelledby="menu-overskrift"></ul>
+      </nav>
     </div>
 
     <footer class="footer">
