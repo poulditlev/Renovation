@@ -20,7 +20,12 @@ function part(overrides: Partial<Part> = {}): Part {
 let n = 0;
 function ctx() {
   n = 0;
-  return { bruger: 'borger', tidspunkt: '2026-07-24T10:00:00.000Z', nyAuditId: () => `audit-${(n += 1)}` };
+  return {
+    bruger: 'Testa Testesen (fiktiv)',
+    rolle: 'BORGER',
+    tidspunkt: '2026-07-24T10:00:00.000Z',
+    nyAuditId: () => `audit-${(n += 1)}`,
+  };
 }
 
 describe('normaliserTelefon', () => {
@@ -82,6 +87,8 @@ describe('retKontaktoplysninger', () => {
       handling: 'RET',
       tabel: 'part',
       raekke_id: 'part-01',
+      bruger: 'Testa Testesen (fiktiv)',
+      rolle: 'BORGER', // sporbarhed: både hvem og i hvilken rolle
       foer: { email: 'gammel@example.dk' },
       efter: { email: 'ny@example.dk' },
     });

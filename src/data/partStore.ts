@@ -20,6 +20,12 @@ export interface RetKontaktStoreResultat {
   auditPoster: AuditLog[];
 }
 
+/** Hvem der handler - navn og rolle registreres i audit-loggen. */
+export interface HandlendeBruger {
+  navn: string;
+  rolle: string;
+}
+
 /**
  * Retter en parts kontaktoplysninger. `aendringer` må kun indeholde
  * selvbetjeningsfelter - registerdata afvises af den rene funktion.
@@ -27,14 +33,15 @@ export interface RetKontaktStoreResultat {
 export function retKontakt(
   partId: string,
   aendringer: Record<string, string | null | undefined>,
-  bruger = 'borger',
+  bruger: HandlendeBruger,
 ): RetKontaktStoreResultat {
   const idx = parter.findIndex((p) => p.id === partId);
   if (idx < 0) {
     throw new Error(`Ukendt part: ${partId}`);
   }
   const { part, auditPoster } = retKontaktoplysninger(parter[idx] as Part, aendringer, {
-    bruger,
+    bruger: bruger.navn,
+    rolle: bruger.rolle,
     tidspunkt: new Date().toISOString(),
     nyAuditId: nytAuditId,
   });

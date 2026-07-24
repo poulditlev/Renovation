@@ -41,6 +41,19 @@ export function materielForEjendom(ejendomId: string): Materiel[] {
   return materiel.filter((m) => m.ejendom_id === ejendomId);
 }
 
+/**
+ * Rå ejendom_part-tilknytninger for en ejendom (uanset gyldighed). Bruges af
+ * adgangskontrollen, der selv afgør om en tilknytning er gyldig på en dato.
+ */
+export function tilknytningerForEjendom(ejendomId: string): EjendomPart[] {
+  return ejendomParter.filter((ep) => ep.ejendom_id === ejendomId);
+}
+
+/** Ejendom-id'er en part er (eller har været) tilknyttet - til borgerfiltrering. */
+export function ejendommeForPart(partId: string): string[] {
+  return ejendomParter.filter((ep) => ep.part_id === partId).map((ep) => ep.ejendom_id);
+}
+
 function idagISO(): string {
   return new Date().toISOString().slice(0, 10);
 }

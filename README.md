@@ -88,6 +88,30 @@ våbenskjold øverst til højre. Adresserne bag er reelle Roskilde-demoadresser,
 DAWA-adresseopslaget fortsat virker. Både kommune og parter er tydeligt mærket
 som fiktive.
 
+**Lag 5 — Adgangsmodel: to brugertyper** (`src/adgang/`, `src/server/`, `public/`)
+
+- To brugertyper: **SAGSBEHANDLER** (må alt, som hidtil) og **BORGER** (må kun se
+  sine egne ejendomme og rette kontaktoplysninger på sin egen part). Reglerne er
+  beskrevet i [`datamodel.md`](./datamodel.md) afsnit 6.
+- Adgangsreglerne er **ren logik** i `src/adgang/adgang.ts` uden kendskab til
+  HTTP, UI eller database: `maaSeEjendom`, `maaUdfoere` (med navngivne handlinger)
+  og `maaRetteKontakt`, med rettighederne som data pr. rolle.
+- **Håndhævelsen sker på serveren.** Hver API-forespørgsel skal have en gyldig
+  identitet, og hver rute (GET som POST) tjekkes. `GET /api/ejendomme` filtreres
+  til borgerens egne ejendomme **på serveren**, og forbudte handlinger afvises med
+  **HTTP 403** og en dansk fejlbesked. At skjule knapper i brugerfladen er kun
+  brugervenlighed — serveren afviser uanset hvad frontend sender.
+- **Sporbarhed.** Audit-log gemmer både *hvem* og *i hvilken rolle* (borger vs.
+  sagsbehandler), og hver `sag` får en `kanal` (`SELVBETJENING`/`SAGSBEHANDLER`),
+  så man kan måle hvor stor en andel der klares uden en sagsbehandler.
+
+> **Ingen rigtig autentifikation i testmiljøet.** Identiteten sendes med hver
+> forespørgsel i headeren `X-Bruger`, og en **rolleskifter i det gule testbanner**
+> ("Logget ind som: …") styrer hvilken der sendes — man kan skifte mellem
+> sagsbehandleren og de fiktive borgere og se fladen ændre sig. Dette **erstatter
+> rigtig login**; i drift ville det være MitID/NemLog-in. Rolleskifteren er
+> tastaturbetjenbar og tydeligt mærket som fake-auth.
+
 ## Kør appen lokalt
 
 ```bash

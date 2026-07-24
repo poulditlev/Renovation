@@ -8,6 +8,12 @@ import { findSagstype } from './sagstype.js';
 export type SagStatus = 'MODTAGET' | 'UNDER_BEHANDLING' | 'PARTSHOERING' | 'AFGJORT' | 'LUKKET';
 export type Afgoerelsesresultat = 'IMOEDEKOMMET' | 'DELVIST' | 'AFSLAG';
 
+/**
+ * Hvordan en sag er opstået. Bruges senere til at måle hvor stor en andel der
+ * klares uden sagsbehandler. Sager oprettet af en borger får `SELVBETJENING`.
+ */
+export type SagKanal = 'SELVBETJENING' | 'SAGSBEHANDLER';
+
 /** Svarer til tabellen `sag`. */
 export interface Sag {
   id: Id;
@@ -16,6 +22,7 @@ export interface Sag {
   ejendom_id: Id;
   part_id: Id | null;
   status: SagStatus;
+  kanal: SagKanal;
   modtaget_dato: string;
   frist_dato: string;
   ansvarlig_bruger: string | null;
@@ -59,6 +66,8 @@ export interface OpretSagInput {
   part_id: string | null;
   modtaget_dato: string;
   ansvarlig_bruger?: string | null;
+  /** Hvordan sagen opstod. Default SAGSBEHANDLER; borger-oprettede får SELVBETJENING. */
+  kanal?: SagKanal;
 }
 
 /**
@@ -77,6 +86,7 @@ export function opretSag(input: OpretSagInput): Sag {
     ejendom_id: input.ejendom_id,
     part_id: input.part_id,
     status: 'MODTAGET',
+    kanal: input.kanal ?? 'SAGSBEHANDLER',
     modtaget_dato: input.modtaget_dato,
     frist_dato: addDage(input.modtaget_dato, type.sagsbehandlingsfrist_dage),
     ansvarlig_bruger: input.ansvarlig_bruger ?? null,

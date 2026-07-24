@@ -372,8 +372,15 @@ Den faktiske hændelse.
 | `status` | text | `MODTAGET`, `UNDER_BEHANDLING`, `PARTSHOERING`, `AFGJORT`, `LUKKET` |
 | `modtaget_dato` | date | |
 | `frist_dato` | date | Beregnet ud fra sagstypen |
-| `ansvarlig_bruger` | text | |
+| `ansvarlig_bruger` | text | Sagsbehandlerens navn. `null` når sagen er oprettet af en borger via selvbetjening |
+| `kanal` | text | `SELVBETJENING` eller `SAGSBEHANDLER` — hvordan sagen er kommet ind. Se afsnit 6 |
 | `lukket_dato` | date | |
+
+> **Kanal (sporbarhed).** `kanal` fortæller om sagen er oprettet af borgeren selv
+> (`SELVBETJENING`) eller af en sagsbehandler (`SAGSBEHANDLER`). Feltet sættes
+> automatisk ud fra den handlende brugers rolle og kan bruges til at måle hvor
+> stor en andel af sagerne der klares uden en sagsbehandler. Borger-oprettede
+> sager får desuden ingen ansvarlig sagsbehandler før en sagsbehandler tager dem.
 
 ### `afgoerelse`
 
@@ -408,11 +415,69 @@ På tværs af det hele. Skrives automatisk, ikke af forretningskoden.
 |---|---|---|
 | `id` | uuid | PK |
 | `tidspunkt` | timestamptz | |
-| `bruger` | text | |
+| `bruger` | text | Hvem der handlede, fx `Birthe Kjærgaard (fiktiv)` |
+| `rolle` | text | I hvilken rolle handlingen skete: `BORGER` eller `SAGSBEHANDLER`. Så en post kan læses som "Birthe Kjærgaard (borger)" |
 | `handling` | text | `LAES`, `OPRET`, `RET`, `LUK` |
 | `tabel` | text | |
 | `raekke_id` | uuid | |
 | `foer` / `efter` | jsonb | Værdier før og efter ændringen |
+
+> **Både hvem og i hvilken rolle.** Hver post gemmer både `bruger` (personen)
+> og `rolle` (om det skete som borger via selvbetjening eller som sagsbehandler).
+> Det gør det muligt at skelne en borgers egen rettelse fra en sagsbehandlers
+> indgreb, selv hvis samme fysiske person i teorien kunne optræde i begge roller.
+
+---
+
+## 6. Roller og adgang
+
+Systemet har to brugertyper. Adgangsreglerne er skrevet som **ren logik** i
+`src/adgang/` uden kendskab til HTTP, UI eller database, og **håndhæves på
+serveren** i API-laget. At skjule knapper i brugerfladen er ikke adgangskontrol
+— serveren afviser (HTTP 403) uanset hvad frontend sender.
+
+### Bruger (identitet)
+
+En `Bruger` består af en `rolle` og — for borgere — hvilken `part_id`
+vedkommende repræsenterer.
+
+| Felt | Type | Note |
+|---|---|---|
+| `rolle` | text | `SAGSBEHANDLER` eller `BORGER` |
+| `part_id` | uuid | Kun for borgere: hvilken `part` brugeren er. `null` for sagsbehandlere |
+| `navn` | text | Til visning og til audit-log |
+
+> I testmiljøet er der **ingen rigtig autentifikation**. Identiteten sendes med
+> hver forespørgsel i headeren `X-Bruger` (`SAGSBEHANDLER` eller
+> `BORGER:<part_id>`), og en rolleskifter i testbanneret styrer hvilken der
+> sendes. I drift ville dette være MitID/NemLog-in.
+
+### Adgangsregler
+
+**SAGSBEHANDLER** må alt (som hidtil): se alle ejendomme, tilføje ydelser,
+forny, danne opkrævninger, skifte opkrævnings- og sagsstatus, træffe afgørelser,
+skrive journalnotater og udløse varslinger.
+
+**BORGER** må kun:
+- **se** data på de ejendomme vedkommende er registreret som part på (via
+  `ejendom_part`), og kun i den periode tilknytningen er gyldig
+  (`gyldig_fra` inklusiv, `gyldig_til` eksklusiv);
+- **rette kontaktoplysninger** (`email`, `telefon`) på sin **egen** part.
+
+Alt andet er forbudt for borgere: tilføje ydelser, forny, danne opkrævninger,
+ændre opkrævnings- eller sagsstatus, træffe afgørelser, skrive journalnotater og
+udløse varslinger.
+
+Reglerne er udtrykt som to rene funktioner og et sæt navngivne handlinger:
+
+- `maaSeEjendom(bruger, tilknytninger, paaDato)` — må brugeren se ejendommen?
+- `maaUdfoere(bruger, handling)` — må brugeren udføre en navngiven handling
+  (`RET_KONTAKT`, `TILFOEJ_LOEBENDE`, `FORNY_YDELSE`, `DAN_OPKRAEVNING`,
+  `SKIFT_SAG_STATUS`, `TRAEF_AFGOERELSE`, `SKRIV_JOURNALNOTAT`, …)?
+- `maaRetteKontakt(bruger, maalPartId)` — borgere kun på egen part.
+
+Rettighederne ligger som data (`RETTIGHEDER: Record<Rolle, Set<Handling>>`), så
+en ny rolle senere kun kræver en ny linje, ikke spredte `if`-sætninger.
 
 ---
 
