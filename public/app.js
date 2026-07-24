@@ -8,6 +8,10 @@ const el = (id) => document.getElementById(id);
 
 // Aktuel valgt register-ejendom (null for live-adresser uden for registret).
 let valgtEjendomId = null;
+// Parterne på den valgte ejendom (til visning + redigering af kontaktoplysninger).
+let aktuelleParter = [];
+// Feltklassifikationen (selvbetjening vs. registerdata) hentet fra serveren.
+let partfelter = { felter: [], register_forklaring: "" };
 // Kodelister til tilføj-dialogen (ydelsestyper, bindingsperioder, takster).
 let katalog = { ydelsestyper: [], bindingsperioder: [], takster: [] };
 
@@ -152,34 +156,9 @@ function visEjendom(data, kilde) {
     stamdata.append(dt, dd);
   }
 
-  // Parter
-  const parterEl = el("parter");
-  parterEl.innerHTML = "";
-  if (!data.parter || data.parter.length === 0) {
-    const p = document.createElement("p");
-    p.className = "tomtilstand";
-    p.textContent = "Ingen part tilknyttet i registret.";
-    parterEl.append(p);
-  } else {
-    for (const part of data.parter) {
-      const kort = document.createElement("div");
-      kort.className = "partkort";
-      const navnHtml =
-        `<span class="partkort__navn">${escapeHtml(rentNavn(part.navn))}</span>` +
-        `<span class="fiktiv-badge">fiktiv</span>`;
-      const meta = [
-        parttypeTekst(part.parttype),
-        `Rolle: ${escapeHtml((part.roller || []).join(", "))}`,
-        part.cvr_nummer ? `CVR ${escapeHtml(part.cvr_nummer)}` : null,
-        part.email ? escapeHtml(part.email) : null,
-        part.telefon ? `Tlf. ${escapeHtml(part.telefon)}` : null,
-      ]
-        .filter(Boolean)
-        .join(" · ");
-      kort.innerHTML = `<div>${navnHtml}</div><div class="partkort__meta">${meta}</div>`;
-      parterEl.append(kort);
-    }
-  }
+  // Parter (i skuffens part-kolonne). Kontaktoplysninger kan rettes.
+  aktuelleParter = data.parter || [];
+  renderParter();
 
   // Ydelser, opkrævning og sager hentes kun for register-ejendomme; en
   // live-fundet adresse er ikke oprettet i registret.
@@ -1098,7 +1077,204 @@ el("afg-form").addEventListener("submit", async (ev) => {
   }
 });
 
+// --- Part: visning + redigering af kontaktoplysninger ------------------------
+function renderParter() {
+  const parterEl = el("parter");
+  parterEl.innerHTML = "";
+  if (!aktuelleParter.length) {
+    const p = document.createElement("p");
+    p.className = "tomtilstand";
+    p.textContent = "Ingen part tilknyttet i registret.";
+    parterEl.append(p);
+    return;
+  }
+  for (const part of aktuelleParter) {
+    const kort = document.createElement("div");
+    kort.className = "partkort";
+    const meta = [
+      parttypeTekst(part.parttype),
+      `Rolle: ${escapeHtml((part.roller || []).join(", "))}`,
+      part.cvr_nummer ? `CVR ${escapeHtml(part.cvr_nummer)}` : null,
+      part.email ? `E-mail: ${escapeHtml(part.email)}` : null,
+      part.telefon ? `Tlf. ${escapeHtml(part.telefon)}` : null,
+    ]
+      .filter(Boolean)
+      .join(" · ");
+    kort.innerHTML =
+      `<div><span class="partkort__navn">${escapeHtml(rentNavn(part.navn))}</span>` +
+      `<span class="fiktiv-badge">fiktiv</span></div>` +
+      `<div class="partkort__meta">${meta}</div>`;
+    const knap = document.createElement("button");
+    knap.type = "button";
+    knap.className = "knap knap--sekundaer partkort__ret";
+    knap.textContent = "Ret kontaktoplysninger";
+    knap.addEventListener("click", () => aabnKontaktDialog(part));
+    kort.append(knap);
+    parterEl.append(kort);
+  }
+}
+
+async function indlaesPartfelter() {
+  try {
+    partfelter = await hentJson("/api/partfelter");
+  } catch {
+    partfelter = { felter: [], register_forklaring: "" };
+  }
+}
+
+// Klientside-spejling af serverens validering (autoritativ regel ligger i domain/kontakt).
+function normaliserTelefonJS(raw) {
+  let t = String(raw || "").replace(/\s+/g, "");
+  if (t === "") return "";
+  if (t.startsWith("+45")) t = t.slice(3);
+  else if (t.startsWith("0045")) t = t.slice(4);
+  return t;
+}
+const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+
+const kontaktDialog = el("kontakt-dialog");
+let aktuelPartId = null;
+
+function saetFejl(inputId, fejlId, besked) {
+  const input = el(inputId);
+  const fejl = el(fejlId);
+  if (besked) {
+    input.setAttribute("aria-invalid", "true");
+    fejl.textContent = besked;
+    fejl.hidden = false;
+  } else {
+    input.removeAttribute("aria-invalid");
+    fejl.textContent = "";
+    fejl.hidden = true;
+  }
+}
+
+async function aabnKontaktDialog(part) {
+  aktuelPartId = part.id;
+  // Registerdata skrivebeskyttet + forklaring.
+  const reg = el("kontakt-register");
+  const registerFelter = (partfelter.felter || []).filter((f) => f.klasse === "REGISTER");
+  const rows = registerFelter
+    .map((f) => {
+      const vaerdi = f.felt === "parttype" ? parttypeTekst(part.parttype) : part[f.felt];
+      if (vaerdi == null || vaerdi === "") return "";
+      return `<div class="kontakt-reg__felt"><dt>${escapeHtml(f.navn)}</dt><dd>${escapeHtml(String(vaerdi))}</dd></div>`;
+    })
+    .filter(Boolean)
+    .join("");
+  reg.innerHTML =
+    `<dl class="kontakt-reg">${rows}</dl>` +
+    `<p class="hjaelptekst kontakt-reg__note">${escapeHtml(partfelter.register_forklaring || "")}</p>`;
+
+  el("k-email").value = part.email || "";
+  el("k-telefon").value = part.telefon || "";
+  saetFejl("k-email", "k-email-fejl", "");
+  saetFejl("k-telefon", "k-telefon-fejl", "");
+  el("kontakt-fejl").hidden = true;
+
+  renderKontaktHistorik([]);
+  hentKontaktHistorik(part.id);
+
+  kontaktDialog.showModal();
+  el("k-email").focus();
+}
+
+async function hentKontaktHistorik(partId) {
+  try {
+    const data = await hentJson(`/api/parter/${encodeURIComponent(partId)}/kontakt-historik`);
+    renderKontaktHistorik(data.historik || []);
+  } catch {
+    renderKontaktHistorik([]);
+  }
+}
+
+function beskrivFelt(felt) {
+  return { email: "E-mail", telefon: "Telefon" }[felt] || felt;
+}
+function beskrivVaerdi(v) {
+  return v == null || v === "" ? "(tom)" : v;
+}
+
+function renderKontaktHistorik(poster) {
+  const c = el("kontakt-historik");
+  if (!poster.length) {
+    c.innerHTML = '<p class="tomtilstand">Ingen tidligere ændringer.</p>';
+    return;
+  }
+  c.innerHTML = poster
+    .map((a) => {
+      const felt = Object.keys(a.efter || {})[0];
+      const foer = beskrivVaerdi((a.foer || {})[felt]);
+      const efter = beskrivVaerdi((a.efter || {})[felt]);
+      return (
+        `<div class="journal"><strong>${escapeHtml(beskrivFelt(felt))}</strong>: ` +
+        `${escapeHtml(String(foer))} → ${escapeHtml(String(efter))}` +
+        `<div class="meta">${escapeHtml(a.tidspunkt)} · ${escapeHtml(a.bruger)}</div></div>`
+      );
+    })
+    .join("");
+}
+
+el("kontakt-annuller").addEventListener("click", () => kontaktDialog.close());
+
+el("kontakt-form").addEventListener("submit", async (ev) => {
+  ev.preventDefault();
+  el("kontakt-fejl").hidden = true;
+  saetFejl("k-email", "k-email-fejl", "");
+  saetFejl("k-telefon", "k-telefon-fejl", "");
+
+  const emailRaw = el("k-email").value.trim();
+  const telRaw = el("k-telefon").value.trim();
+  const telNorm = normaliserTelefonJS(telRaw);
+  let fejl = false;
+
+  if (emailRaw !== "" && !EMAIL_RE.test(emailRaw)) {
+    saetFejl("k-email", "k-email-fejl", "E-mailadressen har ikke en gyldig form.");
+    fejl = true;
+  }
+  if (telNorm !== "" && !/^\d{8}$/.test(telNorm)) {
+    saetFejl("k-telefon", "k-telefon-fejl", "Telefonnummeret skal være et gyldigt dansk 8-cifret nummer.");
+    fejl = true;
+  }
+  if (!fejl && emailRaw === "" && telNorm === "") {
+    const f = el("kontakt-fejl");
+    f.textContent = "Mindst én kontaktmulighed skal være udfyldt, ellers kan der ikke sendes varsling.";
+    f.hidden = false;
+    fejl = true;
+  }
+  if (fejl) {
+    if (el("k-email").getAttribute("aria-invalid")) el("k-email").focus();
+    else if (el("k-telefon").getAttribute("aria-invalid")) el("k-telefon").focus();
+    return;
+  }
+
+  try {
+    const data = await postJson(`/api/parter/${encodeURIComponent(aktuelPartId)}/kontakt`, {
+      email: emailRaw,
+      telefon: telRaw,
+    });
+    // Opdatér visningen med det samme.
+    const idx = aktuelleParter.findIndex((p) => p.id === aktuelPartId);
+    if (idx >= 0) {
+      aktuelleParter[idx] = { ...aktuelleParter[idx], email: data.part.email, telefon: data.part.telefon };
+      renderParter();
+    }
+    kontaktDialog.close();
+    const bek = el("kontakt-bekraeft");
+    bek.textContent = "Kontaktoplysninger opdateret.";
+    bek.hidden = false;
+    setTimeout(() => {
+      bek.hidden = true;
+    }, 5000);
+  } catch (e) {
+    const f = el("kontakt-fejl");
+    f.textContent = e.message;
+    f.hidden = false;
+  }
+});
+
 // --- Opstart -----------------------------------------------------------------
 indlaesRegisterEjendomme();
 indlaesKatalog();
 indlaesSagskatalog();
+indlaesPartfelter();

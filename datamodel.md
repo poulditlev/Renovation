@@ -129,20 +129,35 @@ Systemets subjekt. Renovation følger matriklen, ikke personen.
 Den juridiske part der betaler. Kaldes bevidst `part`, ikke `person`, fordi det
 lige så ofte er en boligforening eller et selskab.
 
-| Felt | Type | Note |
-|---|---|---|
-| `id` | uuid | PK |
-| `parttype` | text | `PERSON`, `VIRKSOMHED`, `FORENING` |
-| `navn` | text | |
-| `cvr_nummer` | text | Kun for virksomheder. Offentligt tilgængeligt |
-| `ekstern_id` | text | Reserveret til CPR i en rigtig løsning — **hold feltet tomt i læringsprojektet** |
-| `email` | text | |
-| `telefon` | text | |
-| `oprettet` / `oprettet_af` | | |
+| Felt | Type | Note | Feltklasse |
+|---|---|---|---|
+| `id` | uuid | PK | — |
+| `parttype` | text | `PERSON`, `VIRKSOMHED`, `FORENING` | **REGISTER** (CPR/CVR) |
+| `navn` | text | | **REGISTER** (CPR/Ejerfortegnelsen) |
+| `cvr_nummer` | text | Kun for virksomheder. Offentligt tilgængeligt | **REGISTER** (CVR) |
+| `ekstern_id` | text | Reserveret til CPR i en rigtig løsning — **hold feltet tomt i læringsprojektet** | REGISTER |
+| `email` | text | | **SELVBETJENING** |
+| `telefon` | text | Gemmes normaliseret (dansk 8-cifret, uden mellemrum/landekode) | **SELVBETJENING** |
+| `oprettet` / `oprettet_af` | | | — |
 
 > **Bemærk.** Al persondata i projektet er syntetisk. Brug tydeligt opdigtede
 > navne og `@example.dk`-adresser. Feltet `ekstern_id` findes kun for at vise
 > hvor CPR *ville* ligge — isoleret i én tabel, ét sted at beskytte og logge.
+
+> **Feltklassifikation (grundlag for selvbetjening).** Felterne på `part` deles
+> i to klasser, og adskillelsen er en sikkerhedsgrænse — ikke kun en
+> UI-detalje:
+> - **SELVBETJENING** (`email`, `telefon`): borgerens egne oplysninger. Må rettes
+>   direkte uden at der oprettes en sag.
+> - **REGISTER** (`navn`, `parttype`, `cvr_nummer`): kommer fra eksterne registre
+>   (CPR/Ejerfortegnelsen/CVR) og må **ikke** rettes i applikationen; vises
+>   skrivebeskyttet.
+>
+> Klassifikationen ligger ét sted som data (`src/domain/partFelter.ts`), så en
+> senere borgerportal kan bruge præcis samme regel. En ren funktion
+> (`retKontaktoplysninger`) validerer og anvender ændringer, **afviser** forsøg
+> på at ændre registerdata, og skriver en `audit_log`-post pr. ændret felt med
+> værdi før og efter — gamle værdier overskrives aldrig sporløst.
 
 ### `ejendom_part`
 Koblingen mellem ejendom og betaler — med periode, for ejere skifter.

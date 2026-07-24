@@ -35,6 +35,8 @@ import {
   tilfoejJournalnotat,
   tilfoejSag,
 } from '../data/sagStore.js';
+import { partFelter, REGISTER_FORKLARING } from '../domain/index.js';
+import { kontaktHistorik, retKontakt } from '../data/partStore.js';
 
 // Simpel HTTP-server for sagsbehandler-brugerfladen. Serverer de statiske filer
 // i public/ og et lille JSON-API. Al DAWA-kommunikation går gennem det
@@ -425,6 +427,37 @@ async function haandterJournalnotat(req: IncomingMessage, res: ServerResponse, s
   }
 }
 
+// --- Part: redigerbare kontaktoplysninger ------------------------------------
+
+/** GET /api/partfelter - feltklassifikationen (selvbetjening vs. registerdata). */
+function haandterPartfelter(res: ServerResponse): void {
+  sendJson(res, 200, { felter: partFelter, register_forklaring: REGISTER_FORKLARING });
+}
+
+/** GET /api/parter/:id/kontakt-historik */
+function haandterKontaktHistorik(res: ServerResponse, partId: string): void {
+  sendJson(res, 200, { historik: kontaktHistorik(partId) });
+}
+
+/** POST /api/parter/:id/kontakt - retter e-mail/telefon via den rene funktion. */
+async function haandterRetKontakt(req: IncomingMessage, res: ServerResponse, partId: string): Promise<void> {
+  try {
+    const krop = await laesJson(req);
+    // Send kun de felter der er relevante; den rene funktion afviser registerdata.
+    const aendringer: Record<string, string | null> = {};
+    if ('email' in krop) aendringer['email'] = krop['email'] == null ? null : String(krop['email']);
+    if ('telefon' in krop) aendringer['telefon'] = krop['telefon'] == null ? null : String(krop['telefon']);
+    // Videresend evt. øvrige felter uændret, så et forsøg på registerdata afvises.
+    for (const key of Object.keys(krop)) {
+      if (key !== 'email' && key !== 'telefon') aendringer[key] = krop[key] as string;
+    }
+    const resultat = retKontakt(partId, aendringer);
+    sendJson(res, 200, resultat);
+  } catch (e) {
+    sendJson(res, 400, { fejl: (e as Error).message });
+  }
+}
+
 // --- Statiske filer ----------------------------------------------------------
 
 async function serverStatiskFil(res: ServerResponse, urlSti: string): Promise<void> {
@@ -486,6 +519,9 @@ async function haandter(req: IncomingMessage, res: ServerResponse): Promise<void
     const jnMatch = sti.match(/^\/api\/sager\/([^/]+)\/journalnotat$/);
     if (jnMatch) return haandterJournalnotat(req, res, decodeURIComponent(jnMatch[1] as string));
 
+    const kontaktMatch = sti.match(/^\/api\/parter\/([^/]+)\/kontakt$/);
+    if (kontaktMatch) return haandterRetKontakt(req, res, decodeURIComponent(kontaktMatch[1] as string));
+
     sendJson(res, 404, { fejl: 'Ukendt API-endpoint.' });
     return;
   }
@@ -513,6 +549,11 @@ async function haandter(req: IncomingMessage, res: ServerResponse): Promise<void
   if (sti === '/api/ydelseskatalog') return haandterYdelseskatalog(res);
 
   if (sti === '/api/sagskatalog') return haandterSagskatalog(res);
+
+  if (sti === '/api/partfelter') return haandterPartfelter(res);
+
+  const kontaktHistMatch = sti.match(/^\/api\/parter\/([^/]+)\/kontakt-historik$/);
+  if (kontaktHistMatch) return haandterKontaktHistorik(res, decodeURIComponent(kontaktHistMatch[1] as string));
 
   if (sti === '/api/adresse/soeg') return haandterAdressesoeg(res, url.searchParams.get('q') ?? '');
 
