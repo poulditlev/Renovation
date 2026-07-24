@@ -23,6 +23,11 @@
   box-sizing: border-box;
 }
 
+/* Sørg for at [hidden] altid vinder over display-regler (fx flex/grid). */
+[hidden] {
+  display: none !important;
+}
+
 html {
   font-size: 16px;
   /* Neutral flade (samme som theme-color), så browserens egen værktøjslinje
@@ -266,68 +271,9 @@ li[role="option"]:focus-visible,
   margin-left: 0.25rem;
 }
 
-/* --- Layout: indhold til venstre, fast højremenu med ejendomme --- */
+/* --- Layout: indholdet fylder hele bredden (ejendomsvalg sker i søgefeltet) --- */
 .layout {
-  display: grid;
-  grid-template-columns: 1fr 18rem;
-  align-items: start;
-}
-@media (max-width: 48rem) {
-  .layout {
-    grid-template-columns: 1fr;
-  }
-}
-
-.sidemenu {
-  background: #e3e8ee;
-  border-left: 1px solid var(--graa-kant);
-  min-height: 70vh;
-  padding: 0.75rem;
-}
-.sidemenu__overskrift {
-  font-size: 0.95rem;
-  margin: 0.2rem 0 0.15rem;
-}
-.sidemenu__note {
-  margin: 0 0 0.6rem;
-  font-size: 0.75rem;
-  color: var(--tekst-daempet);
-}
-.ejendomsliste {
-  list-style: none;
-  margin: 0;
-  padding: 0;
-}
-.ejendomsliste li {
-  margin: 0;
-}
-.ejendomsliste button {
-  width: 100%;
-  text-align: left;
-  background: transparent;
-  border: none;
-  border-bottom: 1px solid #d2d9e0;
-  padding: 0.45rem 0.4rem;
-  cursor: pointer;
-  font-size: 0.86rem;
-  color: var(--tekst);
-}
-.ejendomsliste button:hover {
-  background: #d3dde7;
-}
-.ejendomsliste button[aria-current="true"] {
-  background: var(--blaa);
-  color: #fff;
-}
-.ejendomsliste .li-adresse {
   display: block;
-  font-weight: 600;
-}
-.ejendomsliste .li-part {
-  display: block;
-  font-size: 0.76rem;
-  color: inherit;
-  opacity: 0.85;
 }
 
 /* --- Indhold --- */
@@ -723,3 +669,83 @@ tfoot td { font-weight: 700; background: #f5f7f9; }
 .notat-tilfoej { display: flex; gap: .4rem; margin-top: .5rem; }
 .notat-tilfoej input { flex: 1; padding: .35rem .5rem; border: 1px solid var(--graa-kant-moerk); border-radius: 2px; }
 .dialog__felt textarea { padding: .4rem .5rem; border: 1px solid var(--graa-kant-moerk); border-radius: 2px; font-family: inherit; font-size: .95rem; resize: vertical; }
+
+/* --- Kontekstlinje: tekst til venstre, "Vis stamdata"-knap yderst til højre --- */
+.kontekst__valgt {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 1rem;
+}
+.kontekst__tekst { min-width: 0; }
+.kontekst__knap {
+  flex: none;
+  background: #fff;
+  color: var(--blaa);
+  border: 1px solid var(--graa-kant-moerk);
+  border-radius: 2px;
+  padding: 0.35rem 0.7rem;
+  font-size: 0.85rem;
+  cursor: pointer;
+  white-space: nowrap;
+}
+.kontekst__knap:hover { background: var(--graa-bg); }
+
+/* --- Skuffe: overlay under den frosne topzone (skubber ikke indholdet) --- */
+.skuffe {
+  position: absolute;
+  top: 100%;
+  left: 0;
+  right: 0;
+  background: #fff;
+  border-bottom: 1px solid var(--graa-kant-moerk);
+  box-shadow: 0 8px 18px rgba(0, 0, 0, 0.22);
+  max-height: 70vh;
+  overflow-y: auto;
+  padding: 0.9rem 1rem 1rem;
+}
+.skuffe__kolonner {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 1rem 2rem;
+  max-width: 60rem;
+}
+@media (max-width: 40rem) {
+  .skuffe__kolonner { grid-template-columns: 1fr; }
+}
+.skuffe__titel {
+  font-size: 1rem;
+  margin: 0 0 0.5rem;
+  padding-bottom: 0.25rem;
+  border-bottom: 1px solid var(--graa-bg);
+  color: var(--blaa);
+}
+
+/* --- Combobox: to grupper i samme liste (registret + DAWA) --- */
+.forslag__gruppe {
+  padding: 0.3rem 0.6rem;
+  font-size: 0.72rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: var(--tekst-daempet);
+  background: #eef2f6;
+  border-bottom: 1px solid var(--graa-kant);
+  position: sticky;
+  top: 0;
+}
+.forslag__adresse { display: block; font-weight: 600; }
+.forslag__under {
+  display: block;
+  font-size: 0.76rem;
+  color: var(--tekst-daempet);
+}
+.forslag li[aria-selected="true"] .forslag__under {
+  color: inherit;
+}
+.forslag__tom-gruppe {
+  padding: 0.4rem 0.6rem;
+  font-size: 0.82rem;
+  color: var(--tekst-daempet);
+  font-style: italic;
+}

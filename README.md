@@ -95,9 +95,19 @@ npm install
 npm start
 ```
 
-Åbn derefter <http://localhost:3000> i en browser. Vælg en ejendom i
-venstremenuen for at se stamdata, part, materiel og kort, eller søg en adresse
-i søgefeltet øverst.
+Åbn derefter <http://localhost:3000> i en browser.
+
+**Navigation:** al ejendomsvalg sker i søgefeltet øverst. Feltet er en combobox,
+der åbner allerede når det får fokus, og viser resultater i to grupper i samme
+liste: **Ejendomme i registret** (de fordefinerede demoejendomme, med partnavn og
+antal ydelser) og **Adresser fra DAWA** (adresseforslag, som vises når der er
+skrevet mindst to tegn). Indtastning filtrerer registret på adresse og partnavn
+og henter samtidig DAWA-forslag. Vælg med mus eller piletaster + Enter.
+
+Ejendommens **stamdata** og **tilknyttede part** ligger i en skuffe, der åbnes
+med knappen "Vis stamdata" yderst til højre i kontekstlinjen. Skuffen lægger sig
+som et overlay under den fastlåste topzone og skubber ikke tabellerne ned, så man
+beholder sin plads. Under kontekstlinjen vises ydelser, opkrævning, sager og kort.
 
 - Sæt en anden port med `PORT=4000 npm start`.
 - `npm run dev` starter serveren med automatisk genstart ved ændringer.
