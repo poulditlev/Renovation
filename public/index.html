@@ -121,6 +121,7 @@
           <section class="skuffe__kolonne" aria-labelledby="skuffe-part-titel">
             <h2 id="skuffe-part-titel" class="skuffe__titel">Tilknyttet part</h2>
             <div id="parter"></div>
+            <p id="kontakt-bekraeft" class="kontakt-bekraeft" role="status" aria-live="polite" hidden></p>
           </section>
         </div>
       </div>
@@ -392,6 +393,39 @@
         <div class="dialog__knapper">
           <button type="button" class="knap knap--sekundaer" id="afg-annuller">Annullér</button>
           <button type="submit" class="knap">Registrér afgørelse</button>
+        </div>
+      </form>
+    </dialog>
+
+    <!-- Ret kontaktoplysninger-dialog: kun de selvbetjeningsredigerbare felter.
+         Registerdata vises skrivebeskyttet med forklaring. -->
+    <dialog id="kontakt-dialog" class="dialog" aria-labelledby="kontakt-dialog-titel">
+      <form method="dialog" id="kontakt-form" class="dialog__form" novalidate>
+        <h2 id="kontakt-dialog-titel" class="dialog__titel">Ret kontaktoplysninger</h2>
+
+        <!-- Skrivebeskyttede registerdata (navn, parttype, evt. CVR) + forklaring. -->
+        <div id="kontakt-register" class="kontakt-reg-blok"></div>
+
+        <p class="dialog__felt">
+          <label for="k-email">E-mail</label>
+          <input type="email" id="k-email" autocomplete="email" aria-describedby="k-email-fejl" />
+          <span id="k-email-fejl" class="fejlbesked" role="alert" hidden></span>
+        </p>
+        <p class="dialog__felt">
+          <label for="k-telefon">Telefon</label>
+          <input type="tel" id="k-telefon" autocomplete="tel" aria-describedby="k-telefon-hint k-telefon-fejl" />
+          <span id="k-telefon-hint" class="hjaelptekst">Dansk nummer, fx 12 34 56 78 eller +45 12345678. Kan efterlades tomt.</span>
+          <span id="k-telefon-fejl" class="fejlbesked" role="alert" hidden></span>
+        </p>
+
+        <p id="kontakt-fejl" class="fejlbesked" role="alert" hidden></p>
+
+        <h3 class="kontakt-hist__titel">Seneste ændringer</h3>
+        <div id="kontakt-historik" class="kontakt-historik"></div>
+
+        <div class="dialog__knapper">
+          <button type="button" class="knap knap--sekundaer" id="kontakt-annuller">Annullér</button>
+          <button type="submit" class="knap">Gem</button>
         </div>
       </form>
     </dialog>
