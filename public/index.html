@@ -52,10 +52,11 @@
               <button type="submit" class="knap">Søg</button>
             </div>
             <p id="soegehjaelp" class="hjaelptekst">
-              Skriv mindst to tegn. Demoadresser i Roskilde; adressedata hentes fra DAWA. Brug piletasterne til at vælge et forslag.
+              Vælg en registreret ejendom i listen, eller skriv mindst to tegn for at søge adresser i DAWA
+              (demoadresser i Roskilde). Brug piletasterne og Enter.
             </p>
             <p id="soegefejl" class="fejlbesked" role="alert" hidden></p>
-            <ul id="forslagsliste" role="listbox" aria-label="Adresseforslag" class="forslag" hidden></ul>
+            <ul id="forslagsliste" role="listbox" aria-label="Ejendomme og adresser" class="forslag" hidden></ul>
           </form>
         </search>
 
@@ -90,11 +91,37 @@
       <!-- Kontekstlinje: viser adresse, BFE, kommune og part for valgt ejendom. -->
       <div class="kontekst" id="kontekst" role="region" aria-label="Valgt ejendom" aria-live="polite">
         <p id="kontekst-tom" class="kontekst__tom">
-          Ingen ejendom valgt. Vælg en ejendom i listen, eller søg en adresse.
+          Ingen ejendom valgt. Søg eller vælg en ejendom i søgefeltet ovenfor.
         </p>
         <div id="kontekst-valgt" class="kontekst__valgt" hidden>
-          <h1 id="valgt-adresse" class="kontekst__adresse"></h1>
-          <p id="valgt-meta" class="kontekst__meta"></p>
+          <div class="kontekst__tekst">
+            <h1 id="valgt-adresse" class="kontekst__adresse"></h1>
+            <p id="valgt-meta" class="kontekst__meta"></p>
+          </div>
+          <button
+            type="button"
+            id="stamdata-knap"
+            class="kontekst__knap"
+            aria-expanded="false"
+            aria-controls="stamdata-skuffe"
+          >
+            Vis stamdata
+          </button>
+        </div>
+      </div>
+
+      <!-- Skuffe: stamdata + part. Ligger som OVERLAY under den frosne topzone
+           og skubber IKKE indholdet ned, så man beholder sin plads i tabellen. -->
+      <div id="stamdata-skuffe" class="skuffe" role="region" aria-label="Stamdata og part" tabindex="-1" hidden>
+        <div class="skuffe__kolonner">
+          <section class="skuffe__kolonne" aria-labelledby="skuffe-ejendom-titel">
+            <h2 id="skuffe-ejendom-titel" class="skuffe__titel">Ejendom</h2>
+            <dl class="stamdata" id="stamdata"></dl>
+          </section>
+          <section class="skuffe__kolonne" aria-labelledby="skuffe-part-titel">
+            <h2 id="skuffe-part-titel" class="skuffe__titel">Tilknyttet part</h2>
+            <div id="parter"></div>
+          </section>
         </div>
       </div>
     </div>
@@ -102,34 +129,13 @@
     <div class="layout">
       <main class="indhold" id="indhold" tabindex="-1">
         <p id="tomtilstand" class="tomtilstand">
-          Vælg en ejendom i listen til højre for at se stamdata, part og materiel.
+          Søg eller vælg en ejendom i søgefeltet ovenfor for at se ydelser, opkrævning og sager.
         </p>
 
         <article id="ejendomskort" class="ejendomskort" hidden>
-          <!-- Stamdata er sammenfoldeligt (foldet SAMMEN som udgangspunkt).
-               <details>/<summary> giver tastatur- og skærmlæserstøtte gratis. -->
-          <section class="panel panel--foldbar" aria-labelledby="stamdata-summary">
-            <details id="stamdata-details">
-              <summary id="stamdata-summary" class="panel__summary">
-                <span class="panel__titel">Stamdata</span>
-                <span class="panel__adresse" id="stamdata-adresse"></span>
-              </summary>
-              <dl class="stamdata" id="stamdata"></dl>
-            </details>
-          </section>
-
-          <!-- Tilknyttet part er også sammenfoldeligt (foldet SAMMEN som udgangspunkt). -->
-          <section class="panel panel--foldbar" aria-labelledby="part-summary">
-            <details id="part-details">
-              <summary id="part-summary" class="panel__summary">
-                <span class="panel__titel">Tilknyttet part</span>
-                <span class="panel__adresse" id="part-navn-summary"></span>
-              </summary>
-              <div id="parter"></div>
-            </details>
-          </section>
-
-          <!-- Løbende ydelser og engangsleverancer i to ADSKILTE tabeller. -->
+          <!-- Stamdata og part ligger i skuffen på kontekstlinjen. Kortet
+               starter derfor direkte med Løbende ydelser.
+               Løbende ydelser og engangsleverancer i to ADSKILTE tabeller. -->
           <section aria-labelledby="loebende-overskrift" class="panel">
             <div class="panel__hoved">
               <h2 id="loebende-overskrift">Løbende ydelser</h2>
@@ -264,13 +270,6 @@
           </section>
         </article>
       </main>
-
-      <!-- Fast højremenu med de fordefinerede (fiktive) ejendomme. -->
-      <nav class="sidemenu" aria-label="Ejendomme">
-        <h2 class="sidemenu__overskrift" id="menu-overskrift">Ejendomme i registret</h2>
-        <p class="sidemenu__note">Fiktive demoejendomme.</p>
-        <ul class="ejendomsliste" id="ejendomsliste" aria-labelledby="menu-overskrift"></ul>
-      </nav>
     </div>
 
     <footer class="footer">

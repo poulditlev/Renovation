@@ -127,12 +127,8 @@ function visEjendom(data, kilde) {
       ? ` · Part: ${escapeHtml(partNavn)} <span class="fiktiv-badge">fiktiv</span>`
       : " · Ingen part i registret");
 
-  // Summary-linjer viser den vigtigste værdi, så panelernes indhold kan ses uden at folde ud.
-  el("stamdata-adresse").textContent = e.adressetekst || "";
-  el("part-navn-summary").textContent = partNavn ? `${partNavn} (fiktiv)` : "Ingen part";
-  // Begge paneler er foldet SAMMEN som udgangspunkt ved hvert nyt opslag.
-  el("stamdata-details").open = false;
-  el("part-details").open = false;
+  // Skuffen med stamdata + part er altid lukket ved et nyt opslag.
+  lukSkuffe();
 
   // Stamdata: kun tekniske felter. Adressen gentages ikke (den står i kontekstlinjen).
   const kommune =
@@ -221,50 +217,24 @@ async function hentJson(url) {
   return data;
 }
 
-async function aabnEjendom(id, knap) {
+async function aabnEjendom(id) {
   try {
     const data = await hentJson(`/api/ejendomme/${encodeURIComponent(id)}`);
-    markerAktiv(knap);
     visEjendom(data, "register");
   } catch (e) {
     visSoegefejl(e.message);
   }
 }
 
-function markerAktiv(knap) {
-  document
-    .querySelectorAll(".ejendomsliste button[aria-current='true']")
-    .forEach((b) => b.removeAttribute("aria-current"));
-  if (knap) knap.setAttribute("aria-current", "true");
-}
-
-// --- Venstremenu -------------------------------------------------------------
-async function indlaesEjendomsliste() {
-  const liste = el("ejendomsliste");
-  try {
-    const data = await hentJson("/api/ejendomme");
-    liste.innerHTML = "";
-    for (const e of data.ejendomme) {
-      const li = document.createElement("li");
-      const knap = document.createElement("button");
-      knap.type = "button";
-      knap.innerHTML =
-        `<span class="li-adresse">${escapeHtml(e.adressetekst)}</span>` +
-        `<span class="li-part">${escapeHtml(rentNavn(e.part_navn || "—"))} · BFE ${escapeHtml(e.bfe_nummer)}</span>`;
-      knap.addEventListener("click", () => aabnEjendom(e.id, knap));
-      li.append(knap);
-      liste.append(li);
-    }
-  } catch (e) {
-    liste.innerHTML = `<li class="tomtilstand">Kunne ikke indlæse ejendomme: ${escapeHtml(e.message)}</li>`;
-  }
-}
-
-// --- Adressesøgning med autocomplete (ARIA combobox) -------------------------
+// --- Søgefelt som combobox: to grupper (registret + DAWA) i samme listboks ----
 const soegefelt = el("soegefelt");
 const forslagsliste = el("forslagsliste");
 const soegefejl = el("soegefejl");
-let forslag = [];
+
+let registerEjendomme = []; // forregistrerede ejendomme (gruppe 1)
+let dawaForslag = []; // seneste DAWA-forslag (gruppe 2)
+let dawaSoeger = false;
+let komboOptions = []; // flad liste over valgbare rækker (uden gruppeoverskrifter)
 let aktivtIndeks = -1;
 let debounceId = null;
 
@@ -278,78 +248,151 @@ function visSoegefejl(besked) {
   soegefejl.textContent = besked;
 }
 
-function lukForslag() {
+async function indlaesRegisterEjendomme() {
+  try {
+    const data = await hentJson("/api/ejendomme");
+    registerEjendomme = data.ejendomme || [];
+  } catch {
+    registerEjendomme = [];
+  }
+}
+
+// Filtrerer gruppe 1 på adresse OG partnavn.
+function filtrerEjendomme(q) {
+  const n = q.toLowerCase().trim();
+  if (!n) return registerEjendomme;
+  return registerEjendomme.filter(
+    (e) =>
+      (e.adressetekst || "").toLowerCase().includes(n) ||
+      (e.part_navn || "").toLowerCase().includes(n)
+  );
+}
+
+function lukKombo() {
   forslagsliste.hidden = true;
   forslagsliste.innerHTML = "";
   soegefelt.setAttribute("aria-expanded", "false");
   soegefelt.removeAttribute("aria-activedescendant");
-  forslag = [];
+  komboOptions = [];
   aktivtIndeks = -1;
 }
 
-function tegnForslag() {
-  forslagsliste.innerHTML = "";
-  if (forslag.length === 0) {
-    lukForslag();
-    return;
-  }
-  forslag.forEach((f, i) => {
-    const li = document.createElement("li");
-    li.id = `forslag-${i}`;
-    li.setAttribute("role", "option");
-    li.setAttribute("aria-selected", String(i === aktivtIndeks));
+function tilfoejGruppehoved(tekst) {
+  const li = document.createElement("li");
+  li.className = "forslag__gruppe";
+  li.setAttribute("role", "presentation");
+  li.textContent = tekst;
+  forslagsliste.append(li);
+}
+
+function tilfoejTomGruppe(tekst) {
+  const li = document.createElement("li");
+  li.className = "forslag__tom-gruppe";
+  li.setAttribute("role", "presentation");
+  li.textContent = tekst;
+  forslagsliste.append(li);
+}
+
+function tilfoejOption(item) {
+  const i = komboOptions.length;
+  komboOptions.push(item);
+  const li = document.createElement("li");
+  li.id = `kombo-opt-${i}`;
+  li.setAttribute("role", "option");
+  li.setAttribute("aria-selected", String(i === aktivtIndeks));
+  if (item.type === "ejendom") {
+    const e = item.data;
     li.innerHTML =
-      escapeHtml(f.adressetekst) +
+      `<span class="forslag__adresse">${escapeHtml(e.adressetekst)}</span>` +
+      `<span class="forslag__under">${escapeHtml(rentNavn(e.part_navn || "—"))} · BFE ${escapeHtml(e.bfe_nummer)} · ` +
+      `${e.antal_loebende} løbende / ${e.antal_engangs} engangs</span>`;
+  } else {
+    const f = item.data;
+    li.innerHTML =
+      `<span class="forslag__adresse">${escapeHtml(f.adressetekst)}</span>` +
       (f.kendt_ejendom_id ? '<span class="forslag__kendt">i registret</span>' : "");
-    li.addEventListener("mousedown", (ev) => {
-      ev.preventDefault(); // bevar fokus i inputfeltet
-      vaelgForslag(i);
-    });
-    forslagsliste.append(li);
+  }
+  li.addEventListener("mousedown", (ev) => {
+    ev.preventDefault(); // bevar fokus i inputfeltet
+    vaelgKombo(i);
   });
+  forslagsliste.append(li);
+}
+
+function renderKombo() {
+  const q = soegefelt.value.trim();
+  const ejendomme = filtrerEjendomme(q);
+  const dawaListe = q.length >= 2 ? dawaForslag : [];
+  komboOptions = [];
+  forslagsliste.innerHTML = "";
+
+  // Gruppe 1: registret (altid synlig, også uden indtastning).
+  tilfoejGruppehoved("Ejendomme i registret");
+  if (ejendomme.length === 0) {
+    tilfoejTomGruppe(q ? "Ingen registrerede ejendomme matcher." : "Ingen registrerede ejendomme.");
+  } else {
+    for (const e of ejendomme) tilfoejOption({ type: "ejendom", data: e });
+  }
+
+  // Gruppe 2: DAWA (kun ved mindst 2 tegn).
+  if (q.length >= 2) {
+    tilfoejGruppehoved("Adresser fra DAWA");
+    if (dawaListe.length === 0) {
+      tilfoejTomGruppe(dawaSoeger ? "Søger…" : "Ingen adresser fundet.");
+    } else {
+      for (const f of dawaListe) tilfoejOption({ type: "dawa", data: f });
+    }
+  }
+
   forslagsliste.hidden = false;
   soegefelt.setAttribute("aria-expanded", "true");
-  if (aktivtIndeks >= 0) {
-    soegefelt.setAttribute("aria-activedescendant", `forslag-${aktivtIndeks}`);
+  if (aktivtIndeks >= 0 && aktivtIndeks < komboOptions.length) {
+    soegefelt.setAttribute("aria-activedescendant", `kombo-opt-${aktivtIndeks}`);
+    el(`kombo-opt-${aktivtIndeks}`)?.scrollIntoView({ block: "nearest" });
   } else {
     soegefelt.removeAttribute("aria-activedescendant");
   }
 }
 
-async function soeg(q) {
+async function hentDawa(q) {
   if (q.trim().length < 2) {
-    lukForslag();
+    dawaForslag = [];
+    renderKombo();
     return;
   }
   try {
     visSoegefejl("");
+    dawaSoeger = true;
+    renderKombo();
     const data = await hentJson(`/api/adresse/soeg?q=${encodeURIComponent(q)}`);
-    forslag = data.forslag || [];
-    aktivtIndeks = -1;
-    if (forslag.length === 0) {
-      forslagsliste.innerHTML = '<li class="tomtilstand" style="padding:.45rem .6rem">Ingen adresser fundet.</li>';
-      forslagsliste.hidden = false;
-      soegefelt.setAttribute("aria-expanded", "true");
-    } else {
-      tegnForslag();
-    }
+    // Kun anvend resultatet hvis søgeteksten stadig er den samme.
+    if (soegefelt.value.trim() === q) dawaForslag = data.forslag || [];
   } catch (e) {
-    lukForslag();
-    visSoegefejl(
-      e.detalje ? `${e.message} (${e.detalje})` : e.message || "Adresseopslaget kunne ikke gennemføres."
-    );
+    dawaForslag = [];
+    visSoegefejl(e.detalje ? `${e.message} (${e.detalje})` : e.message);
+  } finally {
+    dawaSoeger = false;
+    renderKombo();
   }
 }
 
-async function vaelgForslag(i) {
-  const valgt = forslag[i];
-  if (!valgt) return;
+async function vaelgKombo(i) {
+  const item = komboOptions[i];
+  if (!item) return;
+  visSoegefejl(""); // ryd evt. tidligere DAWA-fejl når der vælges
+  if (item.type === "ejendom") {
+    // Præcis samme handling som et klik i den tidligere sidemenu.
+    soegefelt.value = item.data.adressetekst;
+    lukKombo();
+    aabnEjendom(item.data.id);
+    return;
+  }
+  const valgt = item.data;
   soegefelt.value = valgt.adressetekst;
-  lukForslag();
+  lukKombo();
   try {
     if (valgt.kendt_ejendom_id) {
       const data = await hentJson(`/api/ejendomme/${encodeURIComponent(valgt.kendt_ejendom_id)}`);
-      markerAktiv(null);
       visEjendom(data, "register");
     } else {
       const p = new URLSearchParams({
@@ -361,7 +404,6 @@ async function vaelgForslag(i) {
         lng: valgt.longitude != null ? String(valgt.longitude) : "",
       });
       const data = await hentJson(`/api/adresse/opslag?${p.toString()}`);
-      markerAktiv(null);
       visEjendom(data, data.kilde || "live");
     }
   } catch (e) {
@@ -369,44 +411,92 @@ async function vaelgForslag(i) {
   }
 }
 
+// Listen åbner allerede når feltet får fokus - med alle registrerede ejendomme.
+soegefelt.addEventListener("focus", () => renderKombo());
+
 soegefelt.addEventListener("input", () => {
   clearTimeout(debounceId);
+  aktivtIndeks = -1;
+  renderKombo(); // filtrér gruppe 1 med det samme
   const q = soegefelt.value;
-  debounceId = setTimeout(() => soeg(q), 250);
+  debounceId = setTimeout(() => hentDawa(q), 250); // hent DAWA til gruppe 2
 });
 
 soegefelt.addEventListener("keydown", (ev) => {
-  if (forslagsliste.hidden || forslag.length === 0) return;
+  if (ev.key === "Escape") {
+    lukKombo();
+    return;
+  }
+  if (forslagsliste.hidden) {
+    if (ev.key === "ArrowDown") {
+      ev.preventDefault();
+      renderKombo();
+    }
+    return;
+  }
+  if (komboOptions.length === 0) return;
   if (ev.key === "ArrowDown") {
     ev.preventDefault();
-    aktivtIndeks = (aktivtIndeks + 1) % forslag.length;
-    tegnForslag();
+    aktivtIndeks = (aktivtIndeks + 1) % komboOptions.length;
+    renderKombo();
   } else if (ev.key === "ArrowUp") {
     ev.preventDefault();
-    aktivtIndeks = (aktivtIndeks - 1 + forslag.length) % forslag.length;
-    tegnForslag();
+    aktivtIndeks = (aktivtIndeks - 1 + komboOptions.length) % komboOptions.length;
+    renderKombo();
   } else if (ev.key === "Enter") {
     if (aktivtIndeks >= 0) {
       ev.preventDefault();
-      vaelgForslag(aktivtIndeks);
+      vaelgKombo(aktivtIndeks);
     }
-  } else if (ev.key === "Escape") {
-    lukForslag();
   }
 });
 
 soegefelt.addEventListener("blur", () => {
   // Luk lidt forsinket, så et klik på et forslag når at blive registreret.
-  setTimeout(lukForslag, 150);
+  setTimeout(lukKombo, 150);
+});
+
+// Klik uden for søgeområdet lukker listen.
+document.addEventListener("click", (ev) => {
+  if (!ev.target.closest(".soegning")) lukKombo();
 });
 
 el("soegeform").addEventListener("submit", (ev) => {
   ev.preventDefault();
-  if (aktivtIndeks >= 0) {
-    vaelgForslag(aktivtIndeks);
-  } else {
-    soeg(soegefelt.value);
+  if (aktivtIndeks >= 0) vaelgKombo(aktivtIndeks);
+  else renderKombo();
+});
+
+// --- Skuffe med stamdata + part (overlay på kontekstlinjen) ------------------
+const stamdataKnap = el("stamdata-knap");
+const stamdataSkuffe = el("stamdata-skuffe");
+
+function aabnSkuffe() {
+  stamdataSkuffe.hidden = false;
+  stamdataKnap.setAttribute("aria-expanded", "true");
+  stamdataKnap.textContent = "Skjul stamdata";
+  stamdataSkuffe.focus(); // flyt fokus ind i skuffen
+}
+
+function lukSkuffe(givFokus) {
+  if (stamdataSkuffe.hidden) {
+    stamdataKnap.setAttribute("aria-expanded", "false");
+    stamdataKnap.textContent = "Vis stamdata";
+    return;
   }
+  stamdataSkuffe.hidden = true;
+  stamdataKnap.setAttribute("aria-expanded", "false");
+  stamdataKnap.textContent = "Vis stamdata";
+  if (givFokus) stamdataKnap.focus(); // fokus tilbage til knappen
+}
+
+stamdataKnap.addEventListener("click", () => {
+  if (stamdataSkuffe.hidden) aabnSkuffe();
+  else lukSkuffe(true);
+});
+
+stamdataSkuffe.addEventListener("keydown", (ev) => {
+  if (ev.key === "Escape") lukSkuffe(true);
 });
 
 // --- Ydelser: to adskilte tabeller + varslinger ------------------------------
@@ -1009,6 +1099,6 @@ el("afg-form").addEventListener("submit", async (ev) => {
 });
 
 // --- Opstart -----------------------------------------------------------------
-indlaesEjendomsliste();
+indlaesRegisterEjendomme();
 indlaesKatalog();
 indlaesSagskatalog();

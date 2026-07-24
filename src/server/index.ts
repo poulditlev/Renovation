@@ -10,7 +10,9 @@ import { DawaFejl, hentJordstykke, soegAdresser, type AdresseForslag } from '../
 import { bindingsperioder, ydelsestyper } from '../ydelser/index.js';
 import { takster } from '../klassifikationer/index.js';
 import {
+  engangsForEjendom,
   fornyLoebende,
+  loebendeForEjendom,
   registrerVarsling,
   tilfoejEngangs,
   tilfoejLoebende,
@@ -69,7 +71,7 @@ function findSeedEjendomVedAdressetekst(tekst: string): Ejendom | undefined {
 
 // --- API-håndtering ----------------------------------------------------------
 
-/** GET /api/ejendomme - kort liste til venstremenuen. */
+/** GET /api/ejendomme - kort liste til combobox-gruppen "Ejendomme i registret". */
 function haandterEjendomsliste(res: ServerResponse): void {
   const liste = alleEjendomme().map((e) => {
     const betaler = parterForEjendom(e.id).find((p) => p.kobling.rolle === 'BETALER');
@@ -78,6 +80,8 @@ function haandterEjendomsliste(res: ServerResponse): void {
       adressetekst: e.adressetekst,
       bfe_nummer: e.bfe_nummer,
       part_navn: betaler?.part.navn ?? null,
+      antal_loebende: loebendeForEjendom(e.id).length,
+      antal_engangs: engangsForEjendom(e.id).length,
     };
   });
   sendJson(res, 200, { ejendomme: liste });
