@@ -86,9 +86,66 @@ li[role="option"]:focus-visible,
   padding: 0.55rem 1rem;
   font-size: 0.9rem;
   text-align: center;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: center;
+  gap: 0.35rem 1.25rem;
 }
 .testbanner strong {
   letter-spacing: 0.05em;
+}
+.testbanner__tekst {
+  flex: 1 1 20rem;
+  min-width: 0;
+}
+
+/* --- Rolleskifter (fake-auth, kun i testbanneret) --- */
+.rolleskifter {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.4rem;
+  text-align: left;
+  background: rgba(255, 255, 255, 0.55);
+  border: 1px solid var(--advarsel-kant);
+  border-radius: 3px;
+  padding: 0.3rem 0.55rem;
+}
+.rolleskifter label {
+  font-weight: 700;
+}
+.rolleskifter select {
+  font: inherit;
+  padding: 0.2rem 0.4rem;
+  border: 1px solid var(--advarsel-kant);
+  border-radius: 2px;
+  background: #fff;
+  color: var(--tekst);
+  max-width: 22rem;
+}
+.rolleskifter__note {
+  flex-basis: 100%;
+  font-size: 0.78rem;
+  font-style: italic;
+  opacity: 0.85;
+}
+
+/* Borgervisning: skjul de handlinger kun en sagsbehandler må udføre. Ren
+   brugervenlighed - serveren afviser dem uanset (403). */
+body.rolle-borger .kun-sagsbehandler {
+  display: none !important;
+}
+
+/* Forklarende banner i borgervisningen. */
+.rolle-note {
+  margin: 0 0 1rem;
+  padding: 0.6rem 0.8rem;
+  background: #eef3f8;
+  border: 1px solid var(--blaa);
+  border-left-width: 4px;
+  border-radius: 2px;
+  font-size: 0.9rem;
 }
 
 /* --- Topbar med søgning --- */

@@ -3,7 +3,21 @@ import { readFile } from 'node:fs/promises';
 import { fileURLToPath } from 'node:url';
 import { dirname, join, normalize } from 'node:path';
 import type { Ejendom } from '../domain/index.js';
-import { alleEjendomme, findEjendom, parterForEjendom } from '../data/store.js';
+import {
+  alleEjendomme,
+  findEjendom,
+  findPart,
+  parterForEjendom,
+  tilknytningerForEjendom,
+} from '../data/store.js';
+import {
+  HANDLINGER,
+  maaRetteKontakt,
+  maaSeEjendom,
+  maaUdfoere,
+  type Bruger,
+  type Handling,
+} from '../adgang/index.js';
 import { byggEjendomVisning } from './ejendomVisning.js';
 import { byggYdelserVisning } from './ydelserVisning.js';
 import { DawaFejl, hentJordstykke, soegAdresser, type AdresseForslag } from '../adresse/dawa.js';
@@ -73,9 +87,12 @@ function findSeedEjendomVedAdressetekst(tekst: string): Ejendom | undefined {
 
 // --- API-håndtering ----------------------------------------------------------
 
-/** GET /api/ejendomme - kort liste til combobox-gruppen "Ejendomme i registret". */
-function haandterEjendomsliste(res: ServerResponse): void {
-  const liste = alleEjendomme().map((e) => {
+/** GET /api/ejendomme - kort liste til combobox-gruppen "Ejendomme i registret".
+ *  For borgere filtreres der på SERVEREN til kun borgerens egne ejendomme. */
+function haandterEjendomsliste(res: ServerResponse, bruger: Bruger): void {
+  const idag = new Date().toISOString().slice(0, 10);
+  const synlige = alleEjendomme().filter((e) => maaSeEjendom(bruger, tilknytningerForEjendom(e.id), idag));
+  const liste = synlige.map((e) => {
     const betaler = parterForEjendom(e.id).find((p) => p.kobling.rolle === 'BETALER');
     return {
       id: e.id,
@@ -373,14 +390,22 @@ function haandterSagskatalog(res: ServerResponse): void {
 }
 
 /** POST /api/ejendomme/:id/sager */
-async function haandterOpretSag(req: IncomingMessage, res: ServerResponse, ejendomId: string): Promise<void> {
+async function haandterOpretSag(
+  req: IncomingMessage,
+  res: ServerResponse,
+  ejendomId: string,
+  bruger: Bruger,
+): Promise<void> {
   if (!findEjendom(ejendomId)) {
     sendJson(res, 404, { fejl: 'Ejendommen findes ikke i registret.' });
     return;
   }
   try {
     const krop = await laesJson(req);
-    const sag = tilfoejSag({ ejendom_id: ejendomId, sagstype_id: somStreng(krop['sagstype_id']) });
+    const sag = tilfoejSag(
+      { ejendom_id: ejendomId, sagstype_id: somStreng(krop['sagstype_id']) },
+      { rolle: bruger.rolle, navn: bruger.navn },
+    );
     sendJson(res, 201, sag);
   } catch (e) {
     sendJson(res, 400, { fejl: (e as Error).message });
@@ -440,7 +465,12 @@ function haandterKontaktHistorik(res: ServerResponse, partId: string): void {
 }
 
 /** POST /api/parter/:id/kontakt - retter e-mail/telefon via den rene funktion. */
-async function haandterRetKontakt(req: IncomingMessage, res: ServerResponse, partId: string): Promise<void> {
+async function haandterRetKontakt(
+  req: IncomingMessage,
+  res: ServerResponse,
+  partId: string,
+  bruger: Bruger,
+): Promise<void> {
   try {
     const krop = await laesJson(req);
     // Send kun de felter der er relevante; den rene funktion afviser registerdata.
@@ -451,11 +481,32 @@ async function haandterRetKontakt(req: IncomingMessage, res: ServerResponse, par
     for (const key of Object.keys(krop)) {
       if (key !== 'email' && key !== 'telefon') aendringer[key] = krop[key] as string;
     }
-    const resultat = retKontakt(partId, aendringer);
+    const resultat = retKontakt(partId, aendringer, { navn: bruger.navn, rolle: bruger.rolle });
     sendJson(res, 200, resultat);
   } catch (e) {
     sendJson(res, 400, { fejl: (e as Error).message });
   }
+}
+
+// --- Brugere / rolleskifter (testmiljøets fake-auth) -------------------------
+
+/**
+ * GET /api/brugere - listen til rolleskifteren: Sagsbehandler + de fiktive
+ * borgere (parter med en ejendom). Dette ER fake-auth i testmiljøet.
+ */
+function haandterBrugere(res: ServerResponse): void {
+  const set = new Map<string, { part_id: string; navn: string; adresser: string[] }>();
+  for (const e of alleEjendomme()) {
+    for (const { part } of parterForEjendom(e.id)) {
+      const rk = set.get(part.id) ?? { part_id: part.id, navn: part.navn, adresser: [] };
+      if (!rk.adresser.includes(e.adressetekst)) rk.adresser.push(e.adressetekst);
+      set.set(part.id, rk);
+    }
+  }
+  sendJson(res, 200, {
+    sagsbehandler: { rolle: 'SAGSBEHANDLER', navn: 'Sagsbehandler ABC' },
+    borgere: [...set.values()].map((b) => ({ rolle: 'BORGER', ...b })),
+  });
 }
 
 // --- Statiske filer ----------------------------------------------------------
@@ -480,6 +531,52 @@ async function serverStatiskFil(res: ServerResponse, urlSti: string): Promise<vo
   }
 }
 
+// --- Adgangskontrol (håndhæves HER på serveren, ikke i frontend) -------------
+
+function send403(res: ServerResponse, besked: string): void {
+  sendJson(res, 403, { fejl: besked });
+}
+
+/** Tolker X-Bruger-headeren til en Bruger. Returnerer null hvis ugyldig. */
+function tolkBruger(req: IncomingMessage): Bruger | null {
+  const raw = req.headers['x-bruger'];
+  const vaerdi = Array.isArray(raw) ? raw[0] : raw;
+  if (!vaerdi) return null;
+  if (vaerdi === 'SAGSBEHANDLER') {
+    return { rolle: 'SAGSBEHANDLER', part_id: null, navn: 'Sagsbehandler ABC' };
+  }
+  const m = /^BORGER:(.+)$/.exec(vaerdi);
+  if (m) {
+    const partId = m[1] as string;
+    const part = findPart(partId);
+    if (!part) return null; // ukendt part => ugyldig identitet
+    return { rolle: 'BORGER', part_id: partId, navn: part.navn };
+  }
+  return null;
+}
+
+/** Må brugeren se ejendommen? (adgangsregel anvendt på store-data.) */
+function kanSeEjendom(bruger: Bruger, ejendomId: string): boolean {
+  return maaSeEjendom(bruger, tilknytningerForEjendom(ejendomId), new Date().toISOString().slice(0, 10));
+}
+
+const FORBUDT_HANDLING = 'Din rolle må ikke udføre denne handling.';
+const FORBUDT_EJENDOM = 'Du har ikke adgang til denne ejendom.';
+
+/** Kræver at brugeren må udføre handlingen; sender 403 og returnerer false hvis ikke. */
+function kraevHandling(bruger: Bruger, res: ServerResponse, handling: Handling): boolean {
+  if (maaUdfoere(bruger, handling)) return true;
+  send403(res, FORBUDT_HANDLING);
+  return false;
+}
+
+/** Kræver at brugeren må se ejendommen; sender 403 og returnerer false hvis ikke. */
+function kraevEjendom(bruger: Bruger, res: ServerResponse, ejendomId: string): boolean {
+  if (kanSeEjendom(bruger, ejendomId)) return true;
+  send403(res, FORBUDT_EJENDOM);
+  return false;
+}
+
 // --- Router ------------------------------------------------------------------
 
 async function haandter(req: IncomingMessage, res: ServerResponse): Promise<void> {
@@ -487,40 +584,95 @@ async function haandter(req: IncomingMessage, res: ServerResponse): Promise<void
   const sti = url.pathname;
   const metode = req.method ?? 'GET';
 
+  // Statiske filer serveres uden identitet (siden skal kunne loade, før den
+  // kan sende en X-Bruger-header). Alt under /api kræver en gyldig identitet.
+  if (!sti.startsWith('/api/')) {
+    if (metode !== 'GET') {
+      sendJson(res, 405, { fejl: 'Kun GET og POST understøttes.' });
+      return;
+    }
+    return serverStatiskFil(res, sti);
+  }
+
+  // Håndhævelse: hver API-forespørgsel skal have en gyldig X-Bruger-header.
+  const bruger = tolkBruger(req);
+  if (!bruger) {
+    send403(res, 'Manglende eller ugyldig identitet (X-Bruger-headeren).');
+    return;
+  }
+
   // --- POST-ruter (mutationer) ---
   if (metode === 'POST') {
     const tilfLoebende = sti.match(/^\/api\/ejendomme\/([^/]+)\/ydelser\/loebende$/);
-    if (tilfLoebende) return haandterTilfoejLoebende(req, res, decodeURIComponent(tilfLoebende[1] as string));
+    if (tilfLoebende) {
+      if (!kraevHandling(bruger, res, HANDLINGER.TILFOEJ_LOEBENDE)) return;
+      return haandterTilfoejLoebende(req, res, decodeURIComponent(tilfLoebende[1] as string));
+    }
 
     const tilfEngangs = sti.match(/^\/api\/ejendomme\/([^/]+)\/ydelser\/engangs$/);
-    if (tilfEngangs) return haandterTilfoejEngangs(req, res, decodeURIComponent(tilfEngangs[1] as string));
+    if (tilfEngangs) {
+      if (!kraevHandling(bruger, res, HANDLINGER.TILFOEJ_ENGANGS)) return;
+      return haandterTilfoejEngangs(req, res, decodeURIComponent(tilfEngangs[1] as string));
+    }
 
     const fornyMatch = sti.match(/^\/api\/ydelser\/loebende\/([^/]+)\/forny$/);
-    if (fornyMatch) return haandterForny(req, res, decodeURIComponent(fornyMatch[1] as string));
+    if (fornyMatch) {
+      if (!kraevHandling(bruger, res, HANDLINGER.FORNY_YDELSE)) return;
+      return haandterForny(req, res, decodeURIComponent(fornyMatch[1] as string));
+    }
 
     const varslMatch = sti.match(/^\/api\/ydelser\/loebende\/([^/]+)\/varsling$/);
-    if (varslMatch) return haandterVarsling(res, decodeURIComponent(varslMatch[1] as string));
+    if (varslMatch) {
+      if (!kraevHandling(bruger, res, HANDLINGER.UDLOES_VARSLING)) return;
+      return haandterVarsling(res, decodeURIComponent(varslMatch[1] as string));
+    }
 
     const danMatch = sti.match(/^\/api\/ejendomme\/([^/]+)\/opkraevning\/dan$/);
-    if (danMatch) return haandterDanOpkraevning(req, res, decodeURIComponent(danMatch[1] as string));
+    if (danMatch) {
+      if (!kraevHandling(bruger, res, HANDLINGER.DAN_OPKRAEVNING)) return;
+      return haandterDanOpkraevning(req, res, decodeURIComponent(danMatch[1] as string));
+    }
 
     const opkStatusMatch = sti.match(/^\/api\/opkraevning\/([^/]+)\/status$/);
-    if (opkStatusMatch) return haandterOpkraevningStatus(req, res, decodeURIComponent(opkStatusMatch[1] as string));
+    if (opkStatusMatch) {
+      if (!kraevHandling(bruger, res, HANDLINGER.SKIFT_OPKRAEVNING_STATUS)) return;
+      return haandterOpkraevningStatus(req, res, decodeURIComponent(opkStatusMatch[1] as string));
+    }
 
     const opretSagMatch = sti.match(/^\/api\/ejendomme\/([^/]+)\/sager$/);
-    if (opretSagMatch) return haandterOpretSag(req, res, decodeURIComponent(opretSagMatch[1] as string));
+    if (opretSagMatch) {
+      if (!kraevHandling(bruger, res, HANDLINGER.OPRET_SAG)) return;
+      return haandterOpretSag(req, res, decodeURIComponent(opretSagMatch[1] as string), bruger);
+    }
 
     const sagStatusMatch = sti.match(/^\/api\/sager\/([^/]+)\/status$/);
-    if (sagStatusMatch) return haandterSagStatus(req, res, decodeURIComponent(sagStatusMatch[1] as string));
+    if (sagStatusMatch) {
+      if (!kraevHandling(bruger, res, HANDLINGER.SKIFT_SAG_STATUS)) return;
+      return haandterSagStatus(req, res, decodeURIComponent(sagStatusMatch[1] as string));
+    }
 
     const afgMatch = sti.match(/^\/api\/sager\/([^/]+)\/afgoerelse$/);
-    if (afgMatch) return haandterAfgoerelse(req, res, decodeURIComponent(afgMatch[1] as string));
+    if (afgMatch) {
+      if (!kraevHandling(bruger, res, HANDLINGER.TRAEF_AFGOERELSE)) return;
+      return haandterAfgoerelse(req, res, decodeURIComponent(afgMatch[1] as string));
+    }
 
     const jnMatch = sti.match(/^\/api\/sager\/([^/]+)\/journalnotat$/);
-    if (jnMatch) return haandterJournalnotat(req, res, decodeURIComponent(jnMatch[1] as string));
+    if (jnMatch) {
+      if (!kraevHandling(bruger, res, HANDLINGER.SKRIV_JOURNALNOTAT)) return;
+      return haandterJournalnotat(req, res, decodeURIComponent(jnMatch[1] as string));
+    }
 
     const kontaktMatch = sti.match(/^\/api\/parter\/([^/]+)\/kontakt$/);
-    if (kontaktMatch) return haandterRetKontakt(req, res, decodeURIComponent(kontaktMatch[1] as string));
+    if (kontaktMatch) {
+      const partId = decodeURIComponent(kontaktMatch[1] as string);
+      // En borger må kun rette sin EGEN parts kontaktoplysninger.
+      if (!maaRetteKontakt(bruger, partId)) {
+        send403(res, 'Du må kun rette din egen parts kontaktoplysninger.');
+        return;
+      }
+      return haandterRetKontakt(req, res, partId, bruger);
+    }
 
     sendJson(res, 404, { fejl: 'Ukendt API-endpoint.' });
     return;
@@ -532,48 +684,79 @@ async function haandter(req: IncomingMessage, res: ServerResponse): Promise<void
   }
 
   // --- GET-ruter ---
-  if (sti === '/api/ejendomme') return haandterEjendomsliste(res);
+  if (sti === '/api/ejendomme') return haandterEjendomsliste(res, bruger);
+
+  if (sti === '/api/brugere') return haandterBrugere(res);
 
   const ydelserMatch = sti.match(/^\/api\/ejendomme\/([^/]+)\/ydelser$/);
-  if (ydelserMatch) return haandterYdelser(res, decodeURIComponent(ydelserMatch[1] as string));
+  if (ydelserMatch) {
+    const id = decodeURIComponent(ydelserMatch[1] as string);
+    if (!kraevEjendom(bruger, res, id)) return;
+    return haandterYdelser(res, id);
+  }
 
   const opkListeMatch = sti.match(/^\/api\/ejendomme\/([^/]+)\/opkraevninger$/);
-  if (opkListeMatch) return haandterOpkraevninger(res, decodeURIComponent(opkListeMatch[1] as string));
+  if (opkListeMatch) {
+    const id = decodeURIComponent(opkListeMatch[1] as string);
+    if (!kraevEjendom(bruger, res, id)) return;
+    return haandterOpkraevninger(res, id);
+  }
 
   const sagerMatch = sti.match(/^\/api\/ejendomme\/([^/]+)\/sager$/);
-  if (sagerMatch) return haandterSager(res, decodeURIComponent(sagerMatch[1] as string));
+  if (sagerMatch) {
+    const id = decodeURIComponent(sagerMatch[1] as string);
+    if (!kraevEjendom(bruger, res, id)) return;
+    return haandterSager(res, id);
+  }
 
   const ejendomMatch = sti.match(/^\/api\/ejendomme\/([^/]+)$/);
-  if (ejendomMatch) return haandterEjendom(res, decodeURIComponent(ejendomMatch[1] as string));
+  if (ejendomMatch) {
+    const id = decodeURIComponent(ejendomMatch[1] as string);
+    if (!kraevEjendom(bruger, res, id)) return;
+    return haandterEjendom(res, id);
+  }
 
+  // Kodelister til dialoger er tilgængelige for begge roller.
   if (sti === '/api/ydelseskatalog') return haandterYdelseskatalog(res);
-
   if (sti === '/api/sagskatalog') return haandterSagskatalog(res);
-
   if (sti === '/api/partfelter') return haandterPartfelter(res);
 
   const kontaktHistMatch = sti.match(/^\/api\/parter\/([^/]+)\/kontakt-historik$/);
-  if (kontaktHistMatch) return haandterKontaktHistorik(res, decodeURIComponent(kontaktHistMatch[1] as string));
-
-  if (sti === '/api/adresse/soeg') return haandterAdressesoeg(res, url.searchParams.get('q') ?? '');
-
-  if (sti === '/api/adresse/opslag') return haandterAdresseopslag(res, url.searchParams);
-
-  if (sti.startsWith('/api/')) {
-    sendJson(res, 404, { fejl: 'Ukendt API-endpoint.' });
-    return;
+  if (kontaktHistMatch) {
+    const partId = decodeURIComponent(kontaktHistMatch[1] as string);
+    // Borger må kun se sin egen parts historik.
+    if (bruger.rolle === 'BORGER' && bruger.part_id !== partId) {
+      send403(res, 'Du må kun se din egen parts historik.');
+      return;
+    }
+    return haandterKontaktHistorik(res, partId);
   }
 
-  return serverStatiskFil(res, sti);
+  // Adresseopslag mod DAWA er et sagsbehandlerværktøj.
+  if (sti === '/api/adresse/soeg' || sti === '/api/adresse/opslag') {
+    if (bruger.rolle !== 'SAGSBEHANDLER') {
+      send403(res, 'Adressesøgning er forbeholdt sagsbehandlere.');
+      return;
+    }
+    if (sti === '/api/adresse/soeg') return haandterAdressesoeg(res, url.searchParams.get('q') ?? '');
+    return haandterAdresseopslag(res, url.searchParams);
+  }
+
+  sendJson(res, 404, { fejl: 'Ukendt API-endpoint.' });
 }
 
-const server = createServer((req, res) => {
+export const server = createServer((req, res) => {
   haandter(req, res).catch((e) => {
     haandterDawaFejl(res, e);
   });
 });
 
-server.listen(PORT, () => {
-  // eslint-disable-next-line no-console
-  console.log(`Renovation-demo (TESTMILJØ) kører på http://localhost:${PORT}`);
-});
+// Lyt kun når filen køres direkte (fx `tsx src/server/index.ts`) - ikke når den
+// importeres i tests, hvor testen selv styrer porten.
+const erHovedmodul = process.argv[1] !== undefined && import.meta.url === `file://${process.argv[1]}`;
+if (erHovedmodul) {
+  server.listen(PORT, () => {
+    // eslint-disable-next-line no-console
+    console.log(`Renovation-demo (TESTMILJØ) kører på http://localhost:${PORT}`);
+  });
+}

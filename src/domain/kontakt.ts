@@ -24,7 +24,8 @@ export function normaliserTelefon(raw: string | null | undefined): string {
 }
 
 export interface RetKontaktKontekst {
-  bruger: string;
+  bruger: string; // navn på den der handler
+  rolle: string; // rolle, fx SAGSBEHANDLER eller BORGER (til audit-sporbarhed)
   tidspunkt: string;
   nyAuditId: () => string;
 }
@@ -93,6 +94,7 @@ export function retKontaktoplysninger(
       id: ctx.nyAuditId(),
       tidspunkt: ctx.tidspunkt,
       bruger: ctx.bruger,
+      rolle: ctx.rolle,
       handling: 'RET',
       tabel: 'part',
       raekke_id: part.id,

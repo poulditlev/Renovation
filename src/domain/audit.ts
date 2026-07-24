@@ -9,7 +9,8 @@ export type AuditHandling = 'LAES' | 'OPRET' | 'RET' | 'LUK';
 export interface AuditLog {
   id: Id;
   tidspunkt: string;
-  bruger: string;
+  bruger: string; // hvem der handlede (navn)
+  rolle: string; // i hvilken rolle, fx SAGSBEHANDLER eller BORGER
   handling: AuditHandling;
   tabel: string;
   raekke_id: Id;

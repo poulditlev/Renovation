@@ -107,12 +107,17 @@ export function journalForSag(sagId: string): Journalnotat[] {
 
 // --- Mutationer --------------------------------------------------------------
 
+/** Hvem der opretter sagen - bestemmer kanal (SELVBETJENING for borgere). */
+export interface HandlendeBruger {
+  rolle: 'SAGSBEHANDLER' | 'BORGER';
+  navn: string;
+}
+
 export interface OpretSagStoreInput {
   ejendom_id: string;
   sagstype_id: string;
-  ansvarlig_bruger?: string;
 }
-export function tilfoejSag(input: OpretSagStoreInput): Sag {
+export function tilfoejSag(input: OpretSagStoreInput, bruger: HandlendeBruger): Sag {
   const partId = parterForEjendom(input.ejendom_id).find((p) => p.kobling.rolle === 'BETALER')?.part.id ?? null;
   const sag = opretSag({
     id: nytId('sag'),
@@ -121,16 +126,18 @@ export function tilfoejSag(input: OpretSagStoreInput): Sag {
     ejendom_id: input.ejendom_id,
     part_id: partId,
     modtaget_dato: idag(),
-    ansvarlig_bruger: input.ansvarlig_bruger ?? 'sagsbehandler@korsbaek.example.dk',
+    ansvarlig_bruger: bruger.rolle === 'SAGSBEHANDLER' ? bruger.navn : null,
+    // Borger-oprettede sager markeres som selvbetjening; ellers sagsbehandler.
+    kanal: bruger.rolle === 'BORGER' ? 'SELVBETJENING' : 'SAGSBEHANDLER',
   });
   sager.push(sag);
   journalnotater.push(
     opretJournalnotat({
       id: nytId('jn'),
       sag_id: sag.id,
-      tekst: 'Sag oprettet.',
+      tekst: `Sag oprettet (${sag.kanal === 'SELVBETJENING' ? 'selvbetjening' : 'sagsbehandler'}).`,
       oprettet: nu(),
-      oprettet_af: 'sagsbehandler',
+      oprettet_af: bruger.navn,
     }),
   );
   return sag;

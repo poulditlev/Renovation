@@ -24,8 +24,16 @@
     <div class="topzone">
       <!-- Permanent, fastlåst testmiljø-banner. Kan ikke lukkes. -->
       <div class="testbanner" role="alert">
-        <strong>TESTMILJØ</strong> — dette er et demonstrationssystem. Data om personer og parter er
-        fiktive. Systemet er ikke et rigtigt kommunalt fagsystem og må ikke anvendes til sagsbehandling.
+        <span class="testbanner__tekst">
+          <strong>TESTMILJØ</strong> — dette er et demonstrationssystem. Data om personer og parter er
+          fiktive. Systemet er ikke et rigtigt kommunalt fagsystem og må ikke anvendes til sagsbehandling.
+        </span>
+        <!-- DEL 4: Rolleskifter (kun her i banneret). Erstatter rigtig autentifikation. -->
+        <span class="rolleskifter">
+          <label for="rolle-vaelger">Logget ind som:</label>
+          <select id="rolle-vaelger"></select>
+          <span class="rolleskifter__note">Ingen rigtig autentifikation. I drift ville dette være MitID/NemLog-in.</span>
+        </span>
       </div>
 
       <header class="topbar">
@@ -129,6 +137,10 @@
 
     <div class="layout">
       <main class="indhold" id="indhold" tabindex="-1">
+        <!-- DEL 4: Vises kun for borgerroller. Forklarer at borgeren ser en
+             begrænset visning (kun egne ejendomme, handlinger deaktiveret). -->
+        <p id="rolle-note" class="rolle-note" role="status" hidden></p>
+
         <p id="tomtilstand" class="tomtilstand">
           Søg eller vælg en ejendom i søgefeltet ovenfor for at se ydelser, opkrævning og sager.
         </p>
@@ -140,7 +152,7 @@
           <section aria-labelledby="loebende-overskrift" class="panel">
             <div class="panel__hoved">
               <h2 id="loebende-overskrift">Løbende ydelser</h2>
-              <button type="button" class="knap knap--tilfoej" data-tilfoej="loebende">+ Tilføj</button>
+              <button type="button" class="knap knap--tilfoej kun-sagsbehandler" data-tilfoej="loebende">+ Tilføj</button>
             </div>
             <div class="tabelramme">
               <table class="datatabel">
@@ -165,7 +177,7 @@
           <section aria-labelledby="engangs-overskrift" class="panel">
             <div class="panel__hoved">
               <h2 id="engangs-overskrift">Engangsleverancer</h2>
-              <button type="button" class="knap knap--tilfoej" data-tilfoej="engangs">+ Tilføj</button>
+              <button type="button" class="knap knap--tilfoej kun-sagsbehandler" data-tilfoej="engangs">+ Tilføj</button>
             </div>
             <div class="tabelramme">
               <table class="datatabel">
@@ -214,7 +226,7 @@
           <section aria-labelledby="opk-overskrift" class="panel">
             <div class="panel__hoved">
               <h2 id="opk-overskrift">Opkrævning</h2>
-              <button type="button" class="knap knap--tilfoej" id="dan-opkraevning">Dan opkrævning for 2026</button>
+              <button type="button" class="knap knap--tilfoej kun-sagsbehandler" id="dan-opkraevning">Dan opkrævning for 2026</button>
             </div>
             <div id="opk-indhold">
               <p id="opk-tom" class="tomtilstand">Ingen opkrævning dannet endnu.</p>
@@ -248,7 +260,7 @@
           <section aria-labelledby="sager-overskrift" class="panel">
             <div class="panel__hoved">
               <h2 id="sager-overskrift">Sagsbehandling</h2>
-              <button type="button" class="knap knap--tilfoej" id="opret-sag">+ Opret sag</button>
+              <button type="button" class="knap knap--tilfoej kun-sagsbehandler" id="opret-sag">+ Opret sag</button>
             </div>
             <div class="sager-split">
               <nav aria-label="Sager på ejendommen">

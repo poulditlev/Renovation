@@ -17,6 +17,7 @@ function sag(overrides: Partial<Sag> = {}): Sag {
     ejendom_id: 'ejendom-1',
     part_id: 'part-1',
     status: 'MODTAGET',
+    kanal: 'SAGSBEHANDLER',
     modtaget_dato: '2026-07-10',
     frist_dato: '2026-08-07',
     ansvarlig_bruger: 'sagsbehandler',

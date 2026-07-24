@@ -15,6 +15,17 @@ let partfelter = { felter: [], register_forklaring: "" };
 // Kodelister til tilføj-dialogen (ydelsestyper, bindingsperioder, takster).
 let katalog = { ydelsestyper: [], bindingsperioder: [], takster: [] };
 
+// --- Rolle / fake-auth (styrer X-Bruger-headeren) ----------------------------
+// VIGTIGT: dette er kun testmiljøets rolleskifter. Den rigtige adgangskontrol
+// håndhæves på SERVEREN - at skjule knapper her er alene brugervenlighed.
+let aktuelBruger = { rolle: "SAGSBEHANDLER", part_id: null, navn: "Sagsbehandler ABC" };
+function erSagsbehandler() {
+  return aktuelBruger.rolle === "SAGSBEHANDLER";
+}
+function brugerHeader() {
+  return aktuelBruger.rolle === "SAGSBEHANDLER" ? "SAGSBEHANDLER" : `BORGER:${aktuelBruger.part_id}`;
+}
+
 const kroneFormat = new Intl.NumberFormat("da-DK", { style: "currency", currency: "DKK" });
 /** Formaterer hele øre som kronebeløb, fx 202000 -> "2.020,00 kr." */
 function formatOere(oere) {
@@ -186,7 +197,7 @@ function visEjendom(data, kilde) {
 }
 
 async function hentJson(url) {
-  const svar = await fetch(url);
+  const svar = await fetch(url, { headers: { "X-Bruger": brugerHeader() } });
   const data = await svar.json().catch(() => ({}));
   if (!svar.ok) {
     const err = new Error(data.fejl || `Serverfejl (${svar.status}).`);
@@ -482,7 +493,7 @@ stamdataSkuffe.addEventListener("keydown", (ev) => {
 async function postJson(url, body) {
   const svar = await fetch(url, {
     method: "POST",
-    headers: { "content-type": "application/json" },
+    headers: { "content-type": "application/json", "X-Bruger": brugerHeader() },
     body: JSON.stringify(body || {}),
   });
   const data = await svar.json().catch(() => ({}));
@@ -522,13 +533,12 @@ function renderLoebende(raekker) {
     const tr = document.createElement("tr");
     if (y.status.kode === "UDLOEBER_SNART") tr.className = "raekke--snart";
     const periode = `${escapeHtml(y.gyldig_fra)} – ${escapeHtml(y.gyldig_til || "løber stadig")}`;
-    let handling = "";
-    if (y.kan_forny) {
+    let handling = "—";
+    // Forny/Varsl er sagsbehandlerhandlinger; skjules for borgere (serveren afviser dem uanset).
+    if (y.kan_forny && erSagsbehandler()) {
       handling =
         `<button type="button" class="tabelknap" data-forny="${escapeHtml(y.id)}">Forny</button>` +
         `<button type="button" class="tabelknap tabelknap--sekundaer" data-varsl="${escapeHtml(y.id)}">Varsl part</button>`;
-    } else {
-      handling = "—";
     }
     tr.innerHTML =
       `<td>${escapeHtml(y.ydelse_navn)}</td>` +
@@ -779,6 +789,9 @@ function pil(kode, tabel) {
   const v = tabel[kode] || { tekst: kode, farve: "graa" };
   return `<span class="status-pil status-${v.farve}">${escapeHtml(v.tekst)}</span>`;
 }
+function kanalTekst(kanal) {
+  return { SELVBETJENING: "Selvbetjening", SAGSBEHANDLER: "Sagsbehandler" }[kanal] || kanal || "—";
+}
 
 // --- Opkrævning --------------------------------------------------------------
 function ryddOpkraevning() {
@@ -821,7 +834,8 @@ function renderOpkraevning(seneste) {
   const naeste = { KLADDE: ["GODKENDT", "Godkend"], GODKENDT: ["SENDT", "Registrér sendt"], SENDT: ["BETALT", "Registrér betaling"] }[o.status];
   const handling = el("opk-handling");
   handling.innerHTML = "";
-  if (naeste) {
+  // Statusskift er en sagsbehandlerhandling; skjules for borgere.
+  if (naeste && erSagsbehandler()) {
     const b = document.createElement("button");
     b.type = "button";
     b.className = "knap";
@@ -892,7 +906,8 @@ function renderSagsliste() {
     if (s.sag.id === valgtSagId) b.setAttribute("aria-current", "true");
     b.innerHTML =
       `<span class="nr">${escapeHtml(s.sag.sagsnummer)}</span>` +
-      `<span class="undertekst">${escapeHtml(s.sagstype_navn)} · ${(SAG_STATUS[s.sag.status] || {}).tekst || s.sag.status}</span>`;
+      `<span class="undertekst">${escapeHtml(s.sagstype_navn)} · ${(SAG_STATUS[s.sag.status] || {}).tekst || s.sag.status}</span>` +
+      `<span class="undertekst">Kanal: ${escapeHtml(kanalTekst(s.sag.kanal))}</span>`;
     b.addEventListener("click", () => vaelgSag(s.sag.id));
     li.append(b);
     ul.append(li);
@@ -919,23 +934,26 @@ function renderSagDetalje(s) {
     `<dt>Sagsnummer</dt><dd>${escapeHtml(sag.sagsnummer)}</dd>` +
     `<dt>Sagstype</dt><dd>${escapeHtml(s.sagstype_navn)}${s.kle_nummer ? ` (KLE ${escapeHtml(s.kle_nummer)})` : ""}</dd>` +
     `<dt>Status</dt><dd>${pil(sag.status, SAG_STATUS)}</dd>` +
+    `<dt>Kanal</dt><dd>${escapeHtml(kanalTekst(sag.kanal))}</dd>` +
     `<dt>Modtaget</dt><dd>${escapeHtml(sag.modtaget_dato)}</dd>` +
     `<dt>Frist</dt><dd>${escapeHtml(sag.frist_dato)}</dd>` +
     `<dt>Ansvarlig</dt><dd>${escapeHtml(sag.ansvarlig_bruger || "—")}</dd>` +
     (sag.lukket_dato ? `<dt>Lukket</dt><dd>${escapeHtml(sag.lukket_dato)}</dd>` : "") +
     `</dl>`;
 
-  // Statushandlinger (næste skridt) + træf afgørelse.
+  // Statushandlinger (næste skridt) + træf afgørelse - kun for sagsbehandlere.
   const naeste = {
     MODTAGET: ["UNDER_BEHANDLING", "Start behandling"],
     UNDER_BEHANDLING: ["PARTSHOERING", "Send i partshøring"],
     PARTSHOERING: ["UNDER_BEHANDLING", "Tilbage til behandling"],
     AFGJORT: ["LUKKET", "Luk sag"],
   }[sag.status];
-  html += `<div class="opk-handling">`;
-  if (naeste) html += `<button type="button" class="knap knap--sekundaer" data-sagstatus="${naeste[0]}">${naeste[1]}</button>`;
-  if (sag.status !== "AFGJORT" && sag.status !== "LUKKET") html += `<button type="button" class="knap" data-afgoerelse="1">Træf afgørelse</button>`;
-  html += `</div>`;
+  if (erSagsbehandler()) {
+    html += `<div class="opk-handling">`;
+    if (naeste) html += `<button type="button" class="knap knap--sekundaer" data-sagstatus="${naeste[0]}">${naeste[1]}</button>`;
+    if (sag.status !== "AFGJORT" && sag.status !== "LUKKET") html += `<button type="button" class="knap" data-afgoerelse="1">Træf afgørelse</button>`;
+    html += `</div>`;
+  }
 
   // Afgørelse
   if (s.afgoerelse) {
@@ -950,17 +968,19 @@ function renderSagDetalje(s) {
       `</dl>`;
   }
 
-  // Journalnotater (append-only) + tilføj
+  // Journalnotater (append-only). Tilføj-feltet er kun for sagsbehandlere.
   html += `<h3>Journalnotater <span class="hjaelptekst" style="color:var(--tekst-daempet)">(kan ikke redigeres/slettes)</span></h3>`;
   for (const j of s.journal) {
     html += `<div class="journal">${escapeHtml(j.tekst)}<div class="meta">${escapeHtml(j.oprettet)} · ${escapeHtml(j.oprettet_af)}</div></div>`;
   }
-  html +=
-    `<div class="notat-tilfoej">` +
-    `<label class="visuelt-skjult" for="nyt-notat">Nyt journalnotat</label>` +
-    `<input id="nyt-notat" type="text" placeholder="Tilføj journalnotat…" />` +
-    `<button type="button" class="knap knap--sekundaer" id="tilfoej-notat">Tilføj notat</button>` +
-    `</div>`;
+  if (erSagsbehandler()) {
+    html +=
+      `<div class="notat-tilfoej">` +
+      `<label class="visuelt-skjult" for="nyt-notat">Nyt journalnotat</label>` +
+      `<input id="nyt-notat" type="text" placeholder="Tilføj journalnotat…" />` +
+      `<button type="button" class="knap knap--sekundaer" id="tilfoej-notat">Tilføj notat</button>` +
+      `</div>`;
+  }
 
   el("sag-detalje").innerHTML = html;
 
@@ -1273,7 +1293,93 @@ el("kontakt-form").addEventListener("submit", async (ev) => {
   }
 });
 
+// --- Rolleskifter (fake-auth i testbanneret) ---------------------------------
+// VIGTIGT: dette styrer kun hvilken X-Bruger-header frontend sender, og hvad
+// der VISES. Den egentlige adgangskontrol håndhæves på serveren, som afviser
+// (403) uanset hvad denne flade sender.
+let brugerliste = { sagsbehandler: null, borgere: [] };
+
+async function indlaesBrugere() {
+  const vaelger = el("rolle-vaelger");
+  try {
+    brugerliste = await hentJson("/api/brugere");
+  } catch {
+    brugerliste = { sagsbehandler: { rolle: "SAGSBEHANDLER", navn: "Sagsbehandler ABC" }, borgere: [] };
+  }
+  vaelger.innerHTML = "";
+  // Sagsbehandler først (systemets standardrolle).
+  const sb = brugerliste.sagsbehandler || { navn: "Sagsbehandler ABC" };
+  const optSb = document.createElement("option");
+  optSb.value = "SAGSBEHANDLER";
+  optSb.textContent = sb.navn;
+  vaelger.append(optSb);
+  // Derefter de fiktive borgere med deres adresse som holdepunkt.
+  for (const b of brugerliste.borgere) {
+    const opt = document.createElement("option");
+    opt.value = `BORGER:${b.part_id}`;
+    const adresse = b.adresser && b.adresser[0] ? ` – ${b.adresser[0]}` : "";
+    opt.textContent = `${rentNavn(b.navn)} (borger)${adresse}`;
+    vaelger.append(opt);
+  }
+  vaelger.value = brugerHeader();
+  opdaterRolleNote();
+}
+
+function skiftRolle(vaerdi) {
+  if (vaerdi === "SAGSBEHANDLER") {
+    aktuelBruger = {
+      rolle: "SAGSBEHANDLER",
+      part_id: null,
+      navn: (brugerliste.sagsbehandler || {}).navn || "Sagsbehandler ABC",
+    };
+  } else {
+    const partId = vaerdi.slice("BORGER:".length);
+    const b = brugerliste.borgere.find((x) => x.part_id === partId);
+    aktuelBruger = { rolle: "BORGER", part_id: partId, navn: b ? b.navn : partId };
+  }
+  // Skjuler sagsbehandler-handlinger i UI (kun brugervenlighed - serveren
+  // håndhæver reglen uanset).
+  document.body.classList.toggle("rolle-borger", !erSagsbehandler());
+  opdaterRolleNote();
+  nulstilVisning();
+  indlaesRegisterEjendomme();
+}
+
+function opdaterRolleNote() {
+  const note = el("rolle-note");
+  if (erSagsbehandler()) {
+    note.hidden = true;
+    note.textContent = "";
+  } else {
+    note.hidden = false;
+    note.textContent =
+      `Du ser systemet som ${rentNavn(aktuelBruger.navn)} (borger). Du kan kun se dine egne ` +
+      "ejendomme og rette dine egne kontaktoplysninger. Handlinger, som kun en sagsbehandler " +
+      "må udføre, er skjult.";
+  }
+}
+
+// Nulstiller fladen ved rolleskift, så man ikke bliver siddende på en ejendom
+// den nye rolle ikke må se.
+function nulstilVisning() {
+  valgtEjendomId = null;
+  aktuelleParter = [];
+  soegefelt.value = "";
+  lukKombo();
+  lukSkuffe();
+  el("ejendomskort").hidden = true;
+  el("tomtilstand").hidden = false;
+  el("kontekst-valgt").hidden = true;
+  el("kontekst-tom").hidden = false;
+  registerEjendomme = [];
+  dawaForslag = [];
+  visSoegefejl("");
+}
+
+el("rolle-vaelger").addEventListener("change", (ev) => skiftRolle(ev.target.value));
+
 // --- Opstart -----------------------------------------------------------------
+indlaesBrugere();
 indlaesRegisterEjendomme();
 indlaesKatalog();
 indlaesSagskatalog();
