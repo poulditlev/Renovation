@@ -1408,6 +1408,8 @@ function skiftRolle(vaerdi) {
   nulstilVisning();
   if (erSagsbehandler()) {
     indlaesRegisterEjendomme();
+    // Sagsbehandlerens standardvisning er det prioriterede sagsoverblik.
+    visFane("overblik", false);
   } else {
     // Borgerens egen læseflade. Al filtrering sker på serveren (GET /api/mine).
     borgerValgtEjendomId = null;
@@ -1444,9 +1446,10 @@ function nulstilVisning() {
   registerEjendomme = [];
   dawaForslag = [];
   visSoegefejl("");
-  // Tilbage til ejendomsfanen og nulstil overbliksfiltrene ved rolleskift.
+  // Nulstil overbliksfiltrene ved rolleskift. Selve fanevalget sættes af
+  // skiftRolle (sagsbehandleren starter på "Mine sager").
   nulstilOverblikFiltre();
-  visFane("ejendom");
+  visFane("ejendom", false);
 }
 
 el("rolle-vaelger").addEventListener("change", (ev) => skiftRolle(ev.target.value));
@@ -1824,13 +1827,19 @@ const OVERBLIK_KATEGORI_TEKST = {
   OEVRIGT: "Øvrigt",
 };
 
-function visFane(fane) {
+function setAktivFane(knap, aktiv) {
+  // Programmatisk markering (aria-current), ikke kun farve.
+  if (aktiv) knap.setAttribute("aria-current", "true");
+  else knap.removeAttribute("aria-current");
+}
+
+function visFane(fane, giveFokus = true) {
   const overblik = fane === "overblik";
   document.body.classList.toggle("visning-overblik", overblik);
-  el("fane-ejendom").setAttribute("aria-pressed", String(!overblik));
-  el("fane-overblik").setAttribute("aria-pressed", String(overblik));
+  setAktivFane(el("fane-overblik"), overblik);
+  setAktivFane(el("fane-ejendom"), !overblik);
   if (overblik) {
-    el("sagsoverblik").focus();
+    if (giveFokus) el("sagsoverblik").focus();
     indlaesOverblik();
   }
 }
@@ -1938,6 +1947,8 @@ document.querySelectorAll(".chip").forEach((chip) =>
 // --- Opstart -----------------------------------------------------------------
 indlaesBrugere();
 indlaesAnsoegningskatalog();
+// Standardvisning for sagsbehandleren er "Mine sager" (uden at flytte fokus).
+visFane("overblik", false);
 indlaesRegisterEjendomme();
 indlaesKatalog();
 indlaesSagskatalog();

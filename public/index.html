@@ -17,7 +17,10 @@
     />
     <link rel="stylesheet" href="/styles.css" />
   </head>
-  <body>
+  <!-- Standardvisning for sagsbehandleren er "Mine sager". Klassen sættes fra
+       start, så aktivt faneblad og indhold stemmer overens uden en flimren
+       (JS bekræfter/rydder den ved rolleskift). -->
+  <body class="visning-overblik">
     <!-- DEL 4: Frossen topzone. Testbanner, søgning og kontekstlinje er
          fastlåst øverst (position: sticky) og scroller IKKE med. Alt derunder
          scroller. -->
@@ -96,11 +99,12 @@
         </div>
       </header>
 
-      <!-- Faner (kun sagsbehandler): skift mellem ejendomsfladen og det
-           prioriterede sagsoverblik "Mine sager". -->
+      <!-- Faner (kun sagsbehandler): skift mellem det prioriterede sagsoverblik
+           "Mine sager" (standardvisning, står først) og ejendomsfladen. Det
+           aktive faneblad markeres programmatisk med aria-current. -->
       <nav class="faner" id="faner" aria-label="Visning">
-        <button type="button" class="fane" id="fane-ejendom" data-fane="ejendom" aria-pressed="true">Ejendom</button>
-        <button type="button" class="fane" id="fane-overblik" data-fane="overblik" aria-pressed="false">Mine sager</button>
+        <button type="button" class="fane" id="fane-overblik" data-fane="overblik" aria-current="true">Mine sager</button>
+        <button type="button" class="fane" id="fane-ejendom" data-fane="ejendom">Ejendom</button>
       </nav>
 
       <!-- Kontekstlinje: viser adresse, BFE, kommune og part for valgt ejendom. -->
