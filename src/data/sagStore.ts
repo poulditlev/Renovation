@@ -53,7 +53,7 @@ function idag(): string {
     ejendom_id: 'ejendom-01',
     part_id: partId,
     modtaget_dato: '2026-05-02',
-    ansvarlig_bruger: 'sagsbehandler@korsbaek.example.dk',
+    ansvarlig_bruger: 'Sagsbehandler ABC',
   });
   const s1b = skiftSagStatus(s1, 'UNDER_BEHANDLING', '2026-05-03');
   const afgjort = traefAfgoerelse(s1b, {
@@ -83,7 +83,7 @@ function idag(): string {
     ejendom_id: 'ejendom-01',
     part_id: partId,
     modtaget_dato: '2026-07-10',
-    ansvarlig_bruger: 'sagsbehandler@korsbaek.example.dk',
+    ansvarlig_bruger: 'Sagsbehandler ABC',
   });
   sager.push(skiftSagStatus(s2, 'UNDER_BEHANDLING', '2026-07-11'));
   journalnotater.push(
@@ -101,6 +101,10 @@ function idag(): string {
 
 export function sagerForEjendom(ejendomId: string): Sag[] {
   return sager.filter((s) => s.ejendom_id === ejendomId);
+}
+/** Alle sager (til det tværgående sagsoverblik). */
+export function alleSager(): Sag[] {
+  return sager;
 }
 export function findSag(id: string): Sag | undefined {
   return sager.find((s) => s.id === id);

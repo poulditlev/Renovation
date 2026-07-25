@@ -31,6 +31,11 @@ export function linjerForOpkraevning(opkraevningId: string): Opkraevningslinje[]
   return linjer.filter((l) => l.opkraevning_id === opkraevningId);
 }
 
+/** Alle opkrævninger (til det tværgående sagsoverblik). */
+export function alleOpkraevninger(): Opkraevning[] {
+  return opkraevninger;
+}
+
 export function findOpkraevning(id: string): Opkraevning | undefined {
   return opkraevninger.find((o) => o.id === id);
 }

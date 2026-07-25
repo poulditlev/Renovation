@@ -1107,3 +1107,232 @@ body.rolle-borger .layout {
   border: 1px solid var(--graa-kant-moerk);
   border-radius: 2px;
 }
+
+/* =====================================================================
+   MINE SAGER — prioriteret sagsoverblik (kun sagsbehandler)
+   ===================================================================== */
+
+/* Faner. Skjult for borgeren (borger har sin egen flade). */
+.faner {
+  display: flex;
+  gap: 0.25rem;
+  background: var(--blaa-lys);
+  padding: 0.35rem 1rem 0;
+}
+body.rolle-borger .faner {
+  display: none;
+}
+.fane {
+  font: inherit;
+  font-weight: 600;
+  cursor: pointer;
+  color: #dce7f1;
+  background: transparent;
+  border: 1px solid transparent;
+  border-bottom: none;
+  border-radius: 4px 4px 0 0;
+  padding: 0.4rem 0.9rem;
+}
+.fane:hover {
+  color: #fff;
+}
+.fane[aria-pressed="true"] {
+  background: var(--graa-bg);
+  color: var(--blaa);
+}
+
+/* Vis/skjul: overbliksfladen erstatter ejendomsfladen. */
+#sagsoverblik {
+  display: none;
+}
+body.visning-overblik #sagsoverblik {
+  display: block;
+}
+body.visning-overblik .soegning,
+body.visning-overblik .kontekst,
+body.visning-overblik #stamdata-skuffe,
+body.visning-overblik .layout {
+  display: none !important;
+}
+
+.sagsoverblik {
+  max-width: 1100px;
+  margin: 0 auto;
+  padding: 1.25rem 1rem 2.5rem;
+}
+.sagsoverblik:focus {
+  outline: none;
+}
+.overblik-hoved {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.75rem;
+  margin-bottom: 1rem;
+}
+.overblik-titel {
+  margin: 0;
+  font-size: 1.6rem;
+  color: var(--blaa);
+}
+.overblik-omfang {
+  display: inline-flex;
+  border: 1px solid var(--graa-kant-moerk);
+  border-radius: 4px;
+  overflow: hidden;
+}
+.omfang-knap {
+  font: inherit;
+  cursor: pointer;
+  background: #fff;
+  color: var(--tekst);
+  border: none;
+  padding: 0.4rem 0.85rem;
+}
+.omfang-knap + .omfang-knap {
+  border-left: 1px solid var(--graa-kant-moerk);
+}
+.omfang-knap[aria-pressed="true"] {
+  background: var(--blaa);
+  color: #fff;
+}
+
+/* Nøgletalskort */
+.noegletal {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+  gap: 0.75rem;
+  margin-bottom: 1rem;
+}
+.noegletal-kort {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 0.1rem;
+  cursor: pointer;
+  text-align: left;
+  font: inherit;
+  background: var(--graa-panel);
+  border: 1px solid var(--graa-kant);
+  border-left: 6px solid var(--graa-kant-moerk);
+  border-radius: 4px;
+  padding: 0.6rem 0.8rem;
+}
+.noegletal-kort__tal {
+  font-size: 1.8rem;
+  font-weight: 700;
+  line-height: 1;
+}
+.noegletal-kort__navn {
+  font-size: 0.9rem;
+  color: var(--tekst-daempet);
+}
+.noegletal-kort--kritisk {
+  border-left-color: #9c2b2b;
+}
+.noegletal-kort--hoej {
+  border-left-color: #b8860b;
+}
+.noegletal-kort--normal {
+  border-left-color: #1c6b2e;
+}
+.noegletal-kort--afventer {
+  border-left-color: #4a545e;
+}
+.noegletal-kort[aria-pressed="true"] {
+  outline: 3px solid var(--blaa);
+  outline-offset: 1px;
+  background: #eef3f8;
+}
+
+/* Kategori-chips */
+.chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.4rem;
+  margin-bottom: 1rem;
+}
+.chip {
+  font: inherit;
+  font-size: 0.9rem;
+  cursor: pointer;
+  background: #fff;
+  color: var(--tekst);
+  border: 1px solid var(--graa-kant-moerk);
+  border-radius: 999px;
+  padding: 0.3rem 0.8rem;
+}
+.chip:hover {
+  border-color: var(--blaa-kant);
+}
+.chip[aria-pressed="true"] {
+  background: var(--blaa);
+  color: #fff;
+  border-color: var(--blaa);
+}
+
+/* Overblikstabel */
+.overblik-raekke {
+  cursor: pointer;
+}
+.overblik-raekke:hover td {
+  background: #eef3f8;
+}
+.overblik-raekke--kritisk td {
+  background: #fbecec;
+}
+.overblik-raekke--kritisk:hover td {
+  background: #f6dede;
+}
+.sagknap {
+  font: inherit;
+  text-align: left;
+  background: none;
+  border: none;
+  padding: 0;
+  color: var(--blaa);
+  font-weight: 600;
+  cursor: pointer;
+  text-decoration: underline;
+}
+.sagknap:hover {
+  color: var(--fokus);
+}
+.overblik-titel-celle .undertekst,
+.overblik-frist-celle .undertekst {
+  display: block;
+  color: var(--tekst-daempet);
+  font-size: 0.8rem;
+}
+
+/* Hastegrad-etiket: BÅDE farve og tekst. */
+.hastegrad-pil {
+  display: inline-block;
+  font-size: 0.8rem;
+  font-weight: 700;
+  border-radius: 3px;
+  padding: 0.1rem 0.45rem;
+  border: 1px solid;
+  white-space: nowrap;
+}
+.hastegrad-KRITISK {
+  background: #f6dede;
+  color: #7a1f1f;
+  border-color: #9c2b2b;
+}
+.hastegrad-HOEJ {
+  background: #f7ecd0;
+  color: #6b4e05;
+  border-color: #b8860b;
+}
+.hastegrad-NORMAL {
+  background: #dcefe1;
+  color: #12551f;
+  border-color: #1c6b2e;
+}
+.hastegrad-AFVENTER {
+  background: #e3e7ea;
+  color: #333b43;
+  border-color: #6b7680;
+}

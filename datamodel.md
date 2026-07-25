@@ -509,6 +509,61 @@ en ny rolle senere kun kræver en ny linje, ikke spredte `if`-sætninger.
 
 ---
 
+## 7. Sagsoverblik (beregnet visning — ingen nye data)
+
+Det prioriterede sagsoverblik ("Mine sager") er en **beregnet visning** oven på
+de eksisterende sager, ydelser og opkrævninger. Det gemmer **ingen nye data**:
+`hastegrad` og `kategori` udledes af rene funktioner (`src/sagsoverblik/`) og
+sættes **aldrig manuelt**. Alle grænseværdier ligger som navngivne konstanter ét
+sted (`TAERSKLER`), så de kan justeres uden at lede i koden.
+
+### Hastegrad (fire niveauer, beregnet)
+
+| Hastegrad | Regel |
+|---|---|
+| **KRITISK** | Sagens frist er overskredet eller udløber inden for `KRITISK_FRIST_DAGE` (3); ELLER en løbende ydelse ophører inden for `KRITISK_YDELSE_DAGE` (1) uden fornyelse; ELLER en opkrævning er forfalden (ubetalt efter forfaldsdato) |
+| **HOEJ** | Frist inden for `HOEJ_FRIST_DAGE` (7); ELLER en selvbetjeningsansøgning har ligget uberørt i mere end `SELVBETJENING_UBEROERT_DAGE` (5) dage; ELLER en ydelse udløber inden for `HOEJ_YDELSE_DAGE` (7) |
+| **NORMAL** | Aktiv sag uden tidspres |
+| **AFVENTER** | Sagen venter på andre (status `PARTSHOERING`). Tæller ikke som en aktiv opgave, men vises stadig |
+
+Kun **aktive** sager (`MODTAGET`, `UNDER_BEHANDLING`, `PARTSHOERING`) indgår;
+afgjorte og lukkede sager er ikke åbne opgaver.
+
+### Kategori (primær, efter fast prioritet)
+
+En sag kan i princippet ramme flere kategorier; den mest handlingsrelevante
+vælges som primær efter denne dokumenterede rækkefølge:
+
+> **BETALING → UDLOEB_YDELSE → KLAGE → SELVBETJENING → FRIST → ØVRIGT**
+
+`BETALING` og `UDLOEB_YDELSE` stammer fra systemsager (se nedenfor); en rigtig
+sag får `KLAGE` (klagesagstype), ellers `SELVBETJENING` (ansøgning/kanal),
+ellers `FRIST` (hvis tidspres), ellers `ØVRIGT`.
+
+### Systemsager — lette afledte poster, ikke rigtige sager
+
+To slags forhold kræver opmærksomhed uden nødvendigvis at være en formel sag
+endnu:
+- en **løbende ydelse der ophører uden fornyelse**, og
+- en **forfalden opkrævning** (status `SENDT`, ubetalt efter forfaldsdato =
+  `dannet_dato` + `BETALINGSFRIST_DAGE`).
+
+**Valg:** disse repræsenteres som **lette, afledte poster** der beregnes i
+farten (`kilde: 'YDELSE' | 'OPKRAEVNING'`, syntetisk id `sys-…`), **ikke** som
+rigtige `sag`-rækker. Overblikket skal netop ikke skabe nye data; en egentlig
+sag oprettes først når en sagsbehandler handler på forholdet. Systemsager har
+ingen ansvarlig og hører til hele afdelingen — de vises derfor kun under
+"Hele afdelingen", ikke under "Mine".
+
+Den rene funktion `byggSagsoverblik(paaDato, sager, ydelser, opkraevninger)`
+returnerer hver relevant post beriget med `{ hastegrad, kategori, fristtekst,
+fristdato }`, sorteret efter hastegrad (kritisk først) og derefter fristdato
+stigende. Håndhævelse: endpointet `GET /api/sagsoverblik` er forbeholdt
+sagsbehandlere (borger → 403), og al beregning/filtrering/sortering sker på
+serveren.
+
+---
+
 ## Relationsoverblik
 
 ```

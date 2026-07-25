@@ -266,6 +266,49 @@ describe('selvbetjening: borgerens ansøgning skaber en sag - ikke en ydelse', (
   });
 });
 
+describe('sagsoverblik: prioriteret visning kun for sagsbehandlere', () => {
+  it('en borger afvises med 403', async () => {
+    const r = await get('/api/sagsoverblik', BORGER_01);
+    expect(r.status).toBe(403);
+  });
+
+  it('svaret har totaler pr. hastegrad og en sorteret liste', async () => {
+    const data = await getJson('/api/sagsoverblik?omfang=alle', SAGSBEHANDLER);
+    expect(data.totaler).toEqual(
+      expect.objectContaining({ KRITISK: expect.any(Number), HOEJ: expect.any(Number), NORMAL: expect.any(Number), AFVENTER: expect.any(Number) }),
+    );
+    // Uden hastegrad/kategori-filter summer totalerne til antal poster.
+    const sum = data.totaler.KRITISK + data.totaler.HOEJ + data.totaler.NORMAL + data.totaler.AFVENTER;
+    expect(sum).toBe(data.poster.length);
+    // Sorteret: hastegrad-rang aldrig faldende.
+    const rang: Record<string, number> = { KRITISK: 0, HOEJ: 1, NORMAL: 2, AFVENTER: 3 };
+    for (let i = 1; i < data.poster.length; i++) {
+      expect(rang[data.poster[i].hastegrad] ?? 0).toBeGreaterThanOrEqual(rang[data.poster[i - 1].hastegrad] ?? 0);
+    }
+  });
+
+  it('"mine" viser kun den ansvarliges sager; "alle" viser også borger-oprettede', async () => {
+    // Borgeren opretter en ansøgning → sag uden ansvarlig sagsbehandler.
+    const opret = await post('/api/ejendomme/ejendom-01/ansoegninger', BORGER_01, {
+      art: 'EKSTRA_BEHOLDER',
+      ydelsestype_id: 'ytype-beholder-240-2',
+    });
+    const sag: any = await opret.json();
+    const nr = sag.sagsnummer;
+
+    const mine = await getJson('/api/sagsoverblik?omfang=mine', SAGSBEHANDLER);
+    expect(mine.poster.some((p: { sagsnummer: string }) => p.sagsnummer === nr)).toBe(false);
+
+    const alle = await getJson('/api/sagsoverblik?omfang=alle', SAGSBEHANDLER);
+    expect(alle.poster.some((p: { sagsnummer: string }) => p.sagsnummer === nr)).toBe(true);
+  });
+
+  it('hastegrad-filteret returnerer kun poster med den hastegrad', async () => {
+    const data = await getJson('/api/sagsoverblik?omfang=alle&hastegrad=KRITISK', SAGSBEHANDLER);
+    for (const p of data.poster) expect(p.hastegrad).toBe('KRITISK');
+  });
+});
+
 describe('sporbarhed: kanal på sag', () => {
   it('en sag oprettet af en borger får kanal SELVBETJENING', () => {
     const sag = tilfoejSag(
