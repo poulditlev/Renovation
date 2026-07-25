@@ -1112,12 +1112,13 @@ body.rolle-borger .layout {
    MINE SAGER — prioriteret sagsoverblik (kun sagsbehandler)
    ===================================================================== */
 
-/* Faner. Skjult for borgeren (borger har sin egen flade). */
+/* Faner. Skjult for borgeren (borger har sin egen flade). Ligger på en
+   mørkeblå bjælke (samme som topbaren ovenover). */
 .faner {
   display: flex;
-  gap: 0.25rem;
-  background: var(--blaa-lys);
-  padding: 0.35rem 1rem 0;
+  gap: 0.4rem;
+  background: var(--blaa);
+  padding: 0.4rem 1rem 0.5rem;
 }
 body.rolle-borger .faner {
   display: none;
@@ -1126,19 +1127,32 @@ body.rolle-borger .faner {
   font: inherit;
   font-weight: 600;
   cursor: pointer;
-  color: #dce7f1;
+  color: #e6eef6; /* lys tekst på den mørke bjælke (kontrast ~9,9:1) */
   background: transparent;
+  /* Gennemsigtig kant reserverer pladsen, så den aktive fane ikke hopper. */
   border: 1px solid transparent;
-  border-bottom: none;
-  border-radius: 4px 4px 0 0;
-  padding: 0.4rem 0.9rem;
+  border-radius: 4px;
+  padding: 0.4rem 0.95rem;
 }
+/* Diskret fremhævning ved hover og tastaturfokus på inaktive faner. */
 .fane:hover {
+  background: rgba(255, 255, 255, 0.14);
   color: #fff;
 }
-.fane[aria-pressed="true"] {
-  background: var(--graa-bg);
-  color: var(--blaa);
+.fane:focus-visible {
+  outline: 3px solid var(--fokus);
+  outline-offset: 2px;
+}
+/* Aktiv fane: lysere blå end bjælken + hvid kant hele vejen rundt = "løftet".
+   Hvid tekst på --blaa-kant giver ~6,7:1 (WCAG AA). Markeret med aria-current. */
+.fane[aria-current="true"] {
+  background: var(--blaa-kant);
+  color: #fff;
+  border-color: #fff;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.3);
+}
+.fane[aria-current="true"]:hover {
+  background: var(--blaa-kant);
 }
 
 /* Vis/skjul: overbliksfladen erstatter ejendomsfladen. */
