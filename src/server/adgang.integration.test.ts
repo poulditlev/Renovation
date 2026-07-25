@@ -307,6 +307,17 @@ describe('sagsoverblik: prioriteret visning kun for sagsbehandlere', () => {
     const data = await getJson('/api/sagsoverblik?omfang=alle&hastegrad=KRITISK', SAGSBEHANDLER);
     for (const p of data.poster) expect(p.hastegrad).toBe('KRITISK');
   });
+
+  it('afdeling_total tæller hele afdelingen uafhængigt af omfang', async () => {
+    const alle = await getJson('/api/sagsoverblik?omfang=alle', SAGSBEHANDLER);
+    const mine = await getJson('/api/sagsoverblik?omfang=mine', SAGSBEHANDLER);
+    // Uden filtre er "alle"-listen præcis afdelingens poster.
+    expect(alle.afdeling_total).toBe(alle.poster.length);
+    // afdeling_total er den samme uanset omfang.
+    expect(mine.afdeling_total).toBe(alle.afdeling_total);
+    // Afdelingen har mindst lige så mange poster som "mine".
+    expect(alle.afdeling_total).toBeGreaterThanOrEqual(mine.poster.length);
+  });
 });
 
 describe('sporbarhed: kanal på sag', () => {

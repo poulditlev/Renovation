@@ -307,7 +307,12 @@
         <h1 class="overblik-titel">Mine sager</h1>
         <div class="overblik-omfang" role="group" aria-label="Omfang">
           <button type="button" class="omfang-knap" id="omfang-mine" data-omfang="mine" aria-pressed="true">Mine</button>
-          <button type="button" class="omfang-knap" id="omfang-alle" data-omfang="alle" aria-pressed="false">Hele afdelingen</button>
+          <button type="button" class="omfang-knap" id="omfang-alle" data-omfang="alle" aria-pressed="false">
+            Hele afdelingen
+            <!-- Rød boble med antal sager for afdelingen. Tallet læses op via
+                 knappens aria-label; selve boblen er dekorativ (aria-hidden). -->
+            <span class="afdeling-badge" id="afdeling-badge" aria-hidden="true" hidden></span>
+          </button>
         </div>
       </div>
 

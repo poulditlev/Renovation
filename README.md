@@ -186,8 +186,11 @@ udledes af rene funktioner og sættes aldrig manuelt.
   på hastegrad), kategori-chips, og en tabel sorteret efter hastegrad. Kritiske
   rækker fremhæves, hastegrad vises med **både farve og tekst**, og et klik på en
   række åbner sagen i den eksisterende sagsvisning. Skift mellem "Mine" og
-  "Hele afdelingen". Fristerne vises i klar tale ("Overskredet 2 dage",
-  "Udløber i morgen", "Frist om 4 dage"). WCAG 2.1 AA: knapper med `aria-pressed`,
+  "Hele afdelingen" — sidstnævnte har en **rød notifikationsboble** med antallet
+  af sager for hele afdelingen (serveren beregner `afdeling_total`; tallet læses
+  op via knappens `aria-label`, så boblen ikke kun signalerer med farve).
+  Fristerne vises i klar tale ("Overskredet 2 dage", "Udløber i morgen",
+  "Frist om 4 dage"). WCAG 2.1 AA: knapper med `aria-pressed`,
   `<th scope="col">`, tastaturnavigation, aldrig farve alene.
 
 ## Kør appen lokalt
