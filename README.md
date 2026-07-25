@@ -112,6 +112,29 @@ som fiktive.
 > rigtig login**; i drift ville det være MitID/NemLog-in. Rolleskifteren er
 > tastaturbetjenbar og tydeligt mærket som fake-auth.
 
+**Lag 6 — Borgerens selvbetjeningsflade (læseflade)** (`src/server/` GET `/api/mine`, `public/`)
+
+Systemet har nu **to visninger af samme domæne**, styret af rolleskifteren:
+
+- **Sagsbehandlerfladen** (rolle SAGSBEHANDLER): den fulde flade, uændret —
+  søgning, stamdata, ydelser, opkrævning, sagsbehandling, kort.
+- **Borgerfladen** (rolle BORGER): en enklere **læseflade** i borgervenligt
+  myndighedssprog, hvor borgeren ser sine egne oplysninger:
+  - **Mine ejendomme** — kun ejendomme hvor borgeren er part (har man kun én,
+    vises den direkte).
+  - **Mine ydelser** — faste ordninger (med hvornår de udløber) og enkelt­leverancer,
+    uden teknik (ingen hjemmel, takst-id, bindingsdetaljer eller opkrævningslinjer).
+  - **Mine regninger** — beløb og periode, med status i borgersprog.
+  - **Mine sager** — egne sager med status i klar tale og hvordan de er oprettet
+    (selvbetjening vs. kommunen).
+  - **Mine kontaktoplysninger** — genbruger den eksisterende redigering af e-mail
+    og telefon; navn og parttype vises skrivebeskyttet.
+
+Borgerfladen er en **tynd frontend** oven på de eksisterende API'er plus én ny
+GET-rute, `/api/mine`, der bygger og **filtrerer borgerens overblik på serveren**.
+Domænelaget er uændret; borgeren får aldrig andres data sendt over ledningen.
+Dette er en ren læseflade — borgeren kan endnu ikke ansøge.
+
 ## Kør appen lokalt
 
 ```bash

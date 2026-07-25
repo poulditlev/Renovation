@@ -871,3 +871,195 @@ tfoot td { font-weight: 700; background: #f5f7f9; }
   color: var(--tekst-daempet);
   font-size: 0.74rem;
 }
+
+/* =====================================================================
+   BORGERFLADE — borgerens selvbetjeningsoverblik (kun læsning)
+   Vises når rollen er BORGER; sagsbehandlerfladen skjules da.
+   ===================================================================== */
+
+/* Rollestyret visning: skjul sagsbehandlerens søgning/kontekst/skuffe/indhold
+   for borgeren, og vis borgerfladen. Banneret (med rolleskifteren) bevares. */
+#borgerflade {
+  display: none;
+}
+body.rolle-borger #borgerflade {
+  display: block;
+}
+body.rolle-borger .soegning,
+body.rolle-borger .kontekst,
+body.rolle-borger #stamdata-skuffe,
+body.rolle-borger .layout {
+  display: none !important;
+}
+
+.borgerflade {
+  max-width: 900px;
+  margin: 0 auto;
+  padding: 1.25rem 1rem 2.5rem;
+}
+.borgerflade:focus {
+  outline: none;
+}
+
+.borger-intro {
+  background: var(--blaa);
+  color: #fff;
+  border-radius: 4px;
+  padding: 1rem 1.15rem;
+  margin-bottom: 1.25rem;
+}
+.borger-intro__titel {
+  margin: 0 0 0.25rem;
+  font-size: 1.5rem;
+}
+.borger-intro__note {
+  margin: 0;
+  font-size: 0.95rem;
+}
+.borger-intro__egne {
+  display: inline-block;
+  margin-left: 0.15rem;
+  background: rgba(255, 255, 255, 0.18);
+  border-radius: 3px;
+  padding: 0.05rem 0.4rem;
+  font-weight: 600;
+}
+
+.borger-panel {
+  background: var(--graa-panel);
+  border: 1px solid var(--graa-kant);
+  border-radius: 4px;
+  padding: 1rem 1.15rem 1.15rem;
+  margin-bottom: 1.1rem;
+}
+.borger-panel__titel {
+  margin: 0 0 0.5rem;
+  font-size: 1.2rem;
+  color: var(--blaa);
+  border-bottom: 2px solid var(--graa-bg);
+  padding-bottom: 0.35rem;
+}
+.borger-panel__hjaelp {
+  margin: 0 0 0.75rem;
+  color: var(--tekst-daempet);
+  font-size: 0.9rem;
+}
+.borger-underoverskrift {
+  margin: 0.9rem 0 0.4rem;
+  font-size: 1rem;
+  color: var(--tekst);
+}
+.borger-tom {
+  margin: 0.3rem 0;
+  color: var(--tekst-daempet);
+  font-style: italic;
+}
+
+/* Mine ejendomme */
+.borger-ejendom-enkelt {
+  margin: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 0.15rem;
+}
+.borger-ejendom-enkelt strong {
+  font-size: 1.05rem;
+}
+.borger-ejendom-enkelt__meta {
+  color: var(--tekst-daempet);
+  font-size: 0.85rem;
+}
+.borger-ejendomsliste {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+}
+.borger-ejendom-knap {
+  display: flex;
+  flex-direction: column;
+  gap: 0.1rem;
+  text-align: left;
+  font: inherit;
+  cursor: pointer;
+  background: var(--graa-bg);
+  border: 1px solid var(--graa-kant);
+  border-radius: 4px;
+  padding: 0.55rem 0.8rem;
+  color: var(--tekst);
+}
+.borger-ejendom-knap:hover {
+  border-color: var(--blaa-kant);
+}
+.borger-ejendom-knap[aria-current="true"] {
+  background: var(--blaa);
+  color: #fff;
+  border-color: var(--blaa);
+}
+.borger-ejendom-knap__adresse {
+  font-weight: 600;
+}
+.borger-ejendom-knap__meta {
+  font-size: 0.8rem;
+  opacity: 0.85;
+}
+
+/* Lister (ydelser, sager) */
+.borger-liste {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+}
+.borger-liste__item {
+  display: flex;
+  flex-direction: column;
+  gap: 0.15rem;
+  border: 1px solid var(--graa-kant);
+  border-left: 4px solid var(--blaa-lys);
+  border-radius: 3px;
+  padding: 0.55rem 0.75rem;
+  background: #fafbfc;
+}
+.borger-liste__navn {
+  font-weight: 600;
+}
+.borger-liste__under {
+  font-size: 0.85rem;
+  color: var(--tekst-daempet);
+}
+.borger-maerke {
+  display: inline-block;
+  margin-left: 0.35rem;
+  padding: 0 0.4rem;
+  border-radius: 3px;
+  font-size: 0.75rem;
+  font-weight: 700;
+}
+.borger-maerke--obs {
+  background: var(--advarsel-bg);
+  color: var(--advarsel-tekst);
+  border: 1px solid var(--advarsel-kant);
+}
+
+/* Mine kontaktoplysninger */
+.borger-kontakt__liste {
+  display: grid;
+  grid-template-columns: max-content 1fr;
+  gap: 0.25rem 1rem;
+  margin: 0 0 0.6rem;
+}
+.borger-kontakt__liste > div {
+  display: contents;
+}
+.borger-kontakt__liste dt {
+  font-weight: 600;
+  color: var(--tekst-daempet);
+}
+.borger-kontakt__liste dd {
+  margin: 0;
+}

@@ -509,6 +509,100 @@ function haandterBrugere(res: ServerResponse): void {
   });
 }
 
+// --- Borgerens selvbetjeningsoverblik (læseflade) ----------------------------
+
+/**
+ * GET /api/mine - borgerens eget overblik, bygget og filtreret PÅ SERVEREN.
+ * Kun borgerens egne ejendomme (via samme adgangsregel som resten), og for hver
+ * ejendom en borgervenlig delmængde: ydelser, regninger og egne sager samt den
+ * part borgeren selv er (til kontaktredigering). Tekniske felter (hjemmel,
+ * takst-id, bindingsdetaljer, opkrævningslinjer) udelades med vilje - de hører
+ * til sagsbehandlerfladen. Endpointet er forbeholdt borgerrollen.
+ */
+function haandterMine(res: ServerResponse, bruger: Bruger): void {
+  if (bruger.rolle !== 'BORGER' || !bruger.part_id) {
+    send403(res, 'Dette overblik er kun for borgere.');
+    return;
+  }
+  const partId = bruger.part_id;
+  const idag = new Date().toISOString().slice(0, 10);
+  const minePart = findPart(partId);
+
+  const ejendomme = alleEjendomme()
+    .filter((e) => maaSeEjendom(bruger, tilknytningerForEjendom(e.id), idag))
+    .map((e) => {
+      const visning = byggEjendomVisning(e, idag);
+      const ydelser = byggYdelserVisning(e.id, idag);
+      const minPart = visning.parter.find((p) => p.id === partId) ?? null;
+
+      // Kun løbende ydelsers navn, fraktion, periode og status - ingen teknik.
+      const loebende = ydelser.loebende.map((y) => ({
+        id: y.id,
+        ydelse_navn: y.ydelse_navn,
+        fraktion_navn: y.fraktion_navn,
+        gyldig_fra: y.gyldig_fra,
+        gyldig_til: y.gyldig_til,
+        status: { kode: y.status.kode, tekst: y.status.tekst },
+      }));
+      const engangs = ydelser.engangs.map((eng) => ({
+        id: eng.id,
+        ydelse_navn: eng.ydelse_navn,
+        fraktion_navn: eng.fraktion_navn,
+        antal: eng.antal,
+        leveringsdato: eng.leveringsdato,
+        status: { kode: eng.status.kode, tekst: eng.status.tekst },
+      }));
+
+      // Regninger som beløb + periode + rå status (frontend oversætter til
+      // borgersprog). Ingen linjer.
+      const regninger = opkraevningerForEjendom(e.id).map((o) => ({
+        id: o.id,
+        periode_fra: o.periode_fra,
+        periode_til: o.periode_til,
+        beloeb_total_oere: o.beloeb_total_oere,
+        status: o.status,
+      }));
+
+      // Kun borgerens egne sager (på egen part).
+      const sager = sagerForEjendom(e.id)
+        .filter((s) => s.part_id === partId)
+        .map((s) => {
+          const type = findSagstype(s.sagstype_id);
+          const afg = afgoerelseForSag(s.id);
+          return {
+            sagsnummer: s.sagsnummer,
+            sagstype_navn: type?.navn ?? s.sagstype_id,
+            status: s.status,
+            kanal: s.kanal,
+            modtaget_dato: s.modtaget_dato,
+            frist_dato: s.frist_dato,
+            afgoerelse_resultat: afg?.resultat ?? null,
+          };
+        });
+
+      return {
+        id: e.id,
+        adressetekst: e.adressetekst,
+        bfe_nummer: e.bfe_nummer,
+        kommune: e.kommunenavn ? `${e.kommunekode} ${e.kommunenavn}` : e.kommunekode,
+        min_part: minPart,
+        loebende,
+        engangs,
+        regninger,
+        sager,
+      };
+    });
+
+  sendJson(res, 200, {
+    borger: {
+      part_id: partId,
+      navn: bruger.navn,
+      parttype: minePart?.parttype ?? null,
+    },
+    ejendomme,
+  });
+}
+
 // --- Statiske filer ----------------------------------------------------------
 
 async function serverStatiskFil(res: ServerResponse, urlSti: string): Promise<void> {
@@ -687,6 +781,8 @@ async function haandter(req: IncomingMessage, res: ServerResponse): Promise<void
   if (sti === '/api/ejendomme') return haandterEjendomsliste(res, bruger);
 
   if (sti === '/api/brugere') return haandterBrugere(res);
+
+  if (sti === '/api/mine') return haandterMine(res, bruger);
 
   const ydelserMatch = sti.match(/^\/api\/ejendomme\/([^/]+)\/ydelser$/);
   if (ydelserMatch) {
