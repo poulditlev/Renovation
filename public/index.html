@@ -285,6 +285,77 @@
       </main>
     </div>
 
+    <!-- BORGERFLADE: borgerens selvbetjeningsoverblik (KUN LÆSNING). Vises når
+         rollen i rolleskifteren er BORGER; sagsbehandlerfladen skjules da. Al
+         filtrering sker på serveren (GET /api/mine) — borgeren får aldrig
+         andres data sendt over ledningen. -->
+    <main class="borgerflade" id="borgerflade" tabindex="-1" aria-label="Min selvbetjening">
+      <div class="borger-intro">
+        <h1 class="borger-intro__titel">Min side</h1>
+        <p class="borger-intro__note">
+          Du er logget ind som <strong id="borger-navn">—</strong>.
+          <span class="borger-intro__egne">Du ser kun dine egne oplysninger.</span>
+        </p>
+      </div>
+
+      <p id="borger-fejl" class="fejlbesked" role="alert" hidden></p>
+
+      <!-- Mine ejendomme -->
+      <section class="borger-panel" aria-labelledby="be-titel">
+        <h2 id="be-titel" class="borger-panel__titel">Mine ejendomme</h2>
+        <div id="borger-ejendomsvalg" class="borger-ejendomsvalg"></div>
+      </section>
+
+      <div id="borger-detalje" hidden>
+        <!-- Mine ydelser -->
+        <section class="borger-panel" aria-labelledby="by-titel">
+          <h2 id="by-titel" class="borger-panel__titel">Mine ydelser</h2>
+          <p class="borger-panel__hjaelp">Det du er tilmeldt på den valgte adresse.</p>
+
+          <h3 class="borger-underoverskrift">Faste ordninger</h3>
+          <ul id="borger-loebende" class="borger-liste"></ul>
+          <p id="borger-loebende-tom" class="borger-tom" hidden>Du har ingen faste ordninger på denne adresse.</p>
+
+          <h3 class="borger-underoverskrift">Bestillinger og enkeltleverancer</h3>
+          <ul id="borger-engangs" class="borger-liste"></ul>
+          <p id="borger-engangs-tom" class="borger-tom" hidden>Du har ingen enkeltleverancer på denne adresse.</p>
+        </section>
+
+        <!-- Mine regninger -->
+        <section class="borger-panel" aria-labelledby="br-titel">
+          <h2 id="br-titel" class="borger-panel__titel">Mine regninger</h2>
+          <div class="tabelramme">
+            <table class="datatabel">
+              <caption class="visuelt-skjult">Regninger for den valgte adresse</caption>
+              <thead>
+                <tr>
+                  <th scope="col">Periode</th>
+                  <th scope="col">Beløb</th>
+                  <th scope="col">Status</th>
+                </tr>
+              </thead>
+              <tbody id="borger-regninger"></tbody>
+            </table>
+          </div>
+          <p id="borger-regninger-tom" class="borger-tom" hidden>Der er ingen regninger på denne adresse endnu.</p>
+        </section>
+
+        <!-- Mine sager -->
+        <section class="borger-panel" aria-labelledby="bs-titel">
+          <h2 id="bs-titel" class="borger-panel__titel">Mine sager</h2>
+          <ul id="borger-sager" class="borger-liste"></ul>
+          <p id="borger-sager-tom" class="borger-tom" hidden>Du har ingen sager på denne adresse.</p>
+        </section>
+
+        <!-- Mine kontaktoplysninger (genbruger den eksisterende ret-dialog) -->
+        <section class="borger-panel" aria-labelledby="bk-titel">
+          <h2 id="bk-titel" class="borger-panel__titel">Mine kontaktoplysninger</h2>
+          <div id="borger-kontakt" class="borger-kontakt"></div>
+          <p id="borger-kontakt-bekraeft" class="kontakt-bekraeft" role="status" aria-live="polite" hidden></p>
+        </section>
+      </div>
+    </main>
+
     <footer class="footer">
       <p>
         <strong>TESTMILJØ – forbehold.</strong> Dette er et demonstrationssystem og ikke et rigtigt

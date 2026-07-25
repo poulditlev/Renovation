@@ -19,6 +19,7 @@ afterAll(async () => {
 
 const SAGSBEHANDLER = { 'X-Bruger': 'SAGSBEHANDLER' };
 const BORGER_01 = { 'X-Bruger': 'BORGER:part-01' };
+const BORGER_02 = { 'X-Bruger': 'BORGER:part-02' };
 
 function get(sti: string, headers: Record<string, string> = {}) {
   return fetch(`${base}${sti}`, { headers });
@@ -118,6 +119,51 @@ describe('adgang: sagsbehandler kan stadig udføre handlinger', () => {
       periode_til: '2027-01-01',
     });
     expect(r.status).toBe(201);
+  });
+});
+
+describe('borger-oversigt: GET /api/mine filtreres på serveren', () => {
+  it('afvises uden identitet og for sagsbehandler', async () => {
+    expect((await get('/api/mine')).status).toBe(403);
+    expect((await get('/api/mine', SAGSBEHANDLER)).status).toBe(403);
+  });
+
+  it('returnerer kun borgerens egne ejendomme', async () => {
+    const data = await getJson('/api/mine', BORGER_01);
+    expect(data.borger.part_id).toBe('part-01');
+    expect(data.ejendomme.map((e: { id: string }) => e.id)).toEqual(['ejendom-01']);
+  });
+
+  it('en anden borger får ikke ejendom-01 i sit svar', async () => {
+    const data = await getJson('/api/mine', BORGER_02);
+    const ids = data.ejendomme.map((e: { id: string }) => e.id);
+    expect(ids.length).toBeGreaterThan(0);
+    expect(ids).not.toContain('ejendom-01');
+  });
+
+  it('sagerne i svaret er kun borgerens egne', async () => {
+    const numre = (h: Record<string, string>) =>
+      getJson('/api/mine', h).then((d) =>
+        d.ejendomme.flatMap((e: { sager: { sagsnummer: string }[] }) => e.sager.map((s) => s.sagsnummer)),
+      );
+    expect(await numre(BORGER_01)).toContain('REN-2026-00098');
+    // Borger-02 må ikke se borger-01's sag.
+    expect(await numre(BORGER_02)).not.toContain('REN-2026-00098');
+  });
+
+  it('regningerne i svaret er kun borgerens egne', async () => {
+    // Sagsbehandler danner en opkrævning på ejendom-01.
+    await post('/api/ejendomme/ejendom-01/opkraevning/dan', SAGSBEHANDLER, {
+      periode_fra: '2026-01-01',
+      periode_til: '2027-01-01',
+    });
+    const d1 = await getJson('/api/mine', BORGER_01);
+    const e01 = d1.ejendomme.find((e: { id: string }) => e.id === 'ejendom-01');
+    expect(e01.regninger.length).toBeGreaterThan(0);
+
+    // Borger-02 får slet ikke ejendom-01 (og dermed ingen af dens regninger).
+    const d2 = await getJson('/api/mine', BORGER_02);
+    expect(d2.ejendomme.map((e: { id: string }) => e.id)).not.toContain('ejendom-01');
   });
 });
 

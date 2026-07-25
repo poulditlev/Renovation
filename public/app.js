@@ -1280,12 +1280,18 @@ el("kontakt-form").addEventListener("submit", async (ev) => {
       renderParter();
     }
     kontaktDialog.close();
-    const bek = el("kontakt-bekraeft");
-    bek.textContent = "Kontaktoplysninger opdateret.";
+    // Bekræftelse vises det rette sted alt efter rolle/flade.
+    const bekId = erSagsbehandler() ? "kontakt-bekraeft" : "borger-kontakt-bekraeft";
+    const bek = el(bekId);
+    bek.textContent = erSagsbehandler()
+      ? "Kontaktoplysninger opdateret."
+      : "Dine kontaktoplysninger er opdateret.";
     bek.hidden = false;
     setTimeout(() => {
       bek.hidden = true;
     }, 5000);
+    // Borgerfladen genindlæses, så de nye oplysninger vises med det samme.
+    if (!erSagsbehandler()) indlaesMine();
   } catch (e) {
     const f = el("kontakt-fejl");
     f.textContent = e.message;
@@ -1340,9 +1346,18 @@ function skiftRolle(vaerdi) {
   // Skjuler sagsbehandler-handlinger i UI (kun brugervenlighed - serveren
   // håndhæver reglen uanset).
   document.body.classList.toggle("rolle-borger", !erSagsbehandler());
+  // Brand-teksten følger rollen (borgeren er ikke i "sagsbehandling").
+  const titel = document.querySelector(".topbar__titel");
+  if (titel) titel.textContent = erSagsbehandler() ? "Renovation · Sagsbehandling" : "Renovation · Selvbetjening";
   opdaterRolleNote();
   nulstilVisning();
-  indlaesRegisterEjendomme();
+  if (erSagsbehandler()) {
+    indlaesRegisterEjendomme();
+  } else {
+    // Borgerens egen læseflade. Al filtrering sker på serveren (GET /api/mine).
+    borgerValgtEjendomId = null;
+    indlaesMine();
+  }
 }
 
 function opdaterRolleNote() {
@@ -1377,6 +1392,214 @@ function nulstilVisning() {
 }
 
 el("rolle-vaelger").addEventListener("change", (ev) => skiftRolle(ev.target.value));
+
+// --- Borgerflade: selvbetjeningsoverblik (kun læsning) -----------------------
+// Tynd frontend oven på GET /api/mine. Serveren bygger og filtrerer data til
+// borgerens egne ejendomme; her oversættes kun til borgervenligt sprog.
+let mineData = { borger: null, ejendomme: [] };
+let borgerValgtEjendomId = null;
+
+const borgerDatoFormat = new Intl.DateTimeFormat("da-DK", { day: "numeric", month: "long", year: "numeric" });
+function formaterDatoBorger(iso) {
+  if (!iso) return "—";
+  const d = new Date(`${iso}T00:00:00Z`);
+  return Number.isNaN(d.getTime()) ? iso : borgerDatoFormat.format(d);
+}
+
+// Oversættelse af interne koder til borgersprog.
+function regningStatusBorger(kode) {
+  return (
+    { KLADDE: "Under udarbejdelse", GODKENDT: "Godkendt", SENDT: "Sendt til dig", BETALT: "Betalt", ANNULLERET: "Annulleret" }[
+      kode
+    ] || "—"
+  );
+}
+function sagStatusBorger(kode) {
+  return (
+    {
+      MODTAGET: "Modtaget",
+      UNDER_BEHANDLING: "Under behandling",
+      PARTSHOERING: "Partshøring (vi henter dine bemærkninger)",
+      AFGJORT: "Afgjort",
+      LUKKET: "Afsluttet",
+    }[kode] || kode
+  );
+}
+function afgResultatBorger(kode) {
+  return { IMOEDEKOMMET: "Imødekommet", DELVIST: "Delvist imødekommet", AFSLAG: "Afslag" }[kode] || kode;
+}
+function kanalBorger(kode) {
+  return kode === "SELVBETJENING" ? "Oprettet af dig via selvbetjening" : "Oprettet af kommunen";
+}
+
+async function indlaesMine() {
+  const fejl = el("borger-fejl");
+  fejl.hidden = true;
+  try {
+    mineData = await hentJson("/api/mine");
+  } catch (e) {
+    mineData = { borger: null, ejendomme: [] };
+    fejl.textContent = `Dine oplysninger kunne ikke hentes: ${e.message}`;
+    fejl.hidden = false;
+  }
+  el("borger-navn").textContent = rentNavn((mineData.borger && mineData.borger.navn) || "—");
+  // Bevar valgt ejendom hvis den stadig findes, ellers vælg den første.
+  const stadig = mineData.ejendomme.find((e) => e.id === borgerValgtEjendomId);
+  borgerValgtEjendomId = stadig ? stadig.id : mineData.ejendomme[0]?.id ?? null;
+  renderBorgerEjendomsvalg();
+  renderBorgerDetalje();
+}
+
+function renderBorgerEjendomsvalg() {
+  const c = el("borger-ejendomsvalg");
+  c.innerHTML = "";
+  const liste = mineData.ejendomme;
+  if (liste.length === 0) {
+    c.innerHTML = '<p class="borger-tom">Der er ingen ejendomme tilknyttet dig.</p>';
+    return;
+  }
+  // Har borgeren kun én ejendom, vises den direkte (ingen valg).
+  if (liste.length === 1) {
+    const e = liste[0];
+    c.innerHTML =
+      `<p class="borger-ejendom-enkelt"><strong>${escapeHtml(e.adressetekst)}</strong>` +
+      `<span class="borger-ejendom-enkelt__meta">BFE ${escapeHtml(e.bfe_nummer)} · ${escapeHtml(e.kommune)}</span></p>`;
+    return;
+  }
+  const ul = document.createElement("ul");
+  ul.className = "borger-ejendomsliste";
+  for (const e of liste) {
+    const li = document.createElement("li");
+    const b = document.createElement("button");
+    b.type = "button";
+    b.className = "borger-ejendom-knap";
+    if (e.id === borgerValgtEjendomId) b.setAttribute("aria-current", "true");
+    b.innerHTML =
+      `<span class="borger-ejendom-knap__adresse">${escapeHtml(e.adressetekst)}</span>` +
+      `<span class="borger-ejendom-knap__meta">BFE ${escapeHtml(e.bfe_nummer)}</span>`;
+    b.addEventListener("click", () => vaelgBorgerEjendom(e.id));
+    li.append(b);
+    ul.append(li);
+  }
+  c.append(ul);
+}
+
+function vaelgBorgerEjendom(id) {
+  borgerValgtEjendomId = id;
+  renderBorgerEjendomsvalg();
+  renderBorgerDetalje();
+}
+
+function renderBorgerDetalje() {
+  const detalje = el("borger-detalje");
+  const e = mineData.ejendomme.find((x) => x.id === borgerValgtEjendomId);
+  if (!e) {
+    detalje.hidden = true;
+    return;
+  }
+  detalje.hidden = false;
+  renderBorgerLoebende(e.loebende);
+  renderBorgerEngangs(e.engangs);
+  renderBorgerRegninger(e.regninger);
+  renderBorgerSager(e.sager);
+  renderBorgerKontakt(e);
+}
+
+function renderBorgerLoebende(liste) {
+  const ul = el("borger-loebende");
+  ul.innerHTML = "";
+  el("borger-loebende-tom").hidden = liste.length > 0;
+  for (const y of liste) {
+    const li = document.createElement("li");
+    li.className = "borger-liste__item";
+    const gaelder = y.gyldig_til ? `Gælder til ${formaterDatoBorger(y.gyldig_til)}` : "Løber fortsat";
+    let maerke = "";
+    if (y.status.kode === "UDLOEBER_SNART") maerke = '<span class="borger-maerke borger-maerke--obs">Udløber snart</span>';
+    else if (y.status.kode === "UDLOEBET") maerke = '<span class="borger-maerke borger-maerke--obs">Udløbet</span>';
+    li.innerHTML =
+      `<span class="borger-liste__navn">${escapeHtml(y.ydelse_navn)}</span>` +
+      (y.fraktion_navn ? `<span class="borger-liste__under">${escapeHtml(y.fraktion_navn)}</span>` : "") +
+      `<span class="borger-liste__under">${escapeHtml(gaelder)} ${maerke}</span>`;
+    ul.append(li);
+  }
+}
+
+function renderBorgerEngangs(liste) {
+  const ul = el("borger-engangs");
+  ul.innerHTML = "";
+  el("borger-engangs-tom").hidden = liste.length > 0;
+  for (const eng of liste) {
+    const li = document.createElement("li");
+    li.className = "borger-liste__item";
+    li.innerHTML =
+      `<span class="borger-liste__navn">${escapeHtml(eng.ydelse_navn)}</span>` +
+      (eng.fraktion_navn ? `<span class="borger-liste__under">${escapeHtml(eng.fraktion_navn)}</span>` : "") +
+      `<span class="borger-liste__under">Antal: ${escapeHtml(String(eng.antal))} · ` +
+      `Leveringsdato: ${escapeHtml(formaterDatoBorger(eng.leveringsdato))} · ${escapeHtml(eng.status.tekst)}</span>`;
+    ul.append(li);
+  }
+}
+
+function renderBorgerRegninger(liste) {
+  const tbody = el("borger-regninger");
+  tbody.innerHTML = "";
+  el("borger-regninger-tom").hidden = liste.length > 0;
+  for (const r of liste) {
+    const tr = document.createElement("tr");
+    tr.innerHTML =
+      `<td>${escapeHtml(formaterDatoBorger(r.periode_fra))} – ${escapeHtml(formaterDatoBorger(r.periode_til))}</td>` +
+      `<td>${formatOere(r.beloeb_total_oere)}</td>` +
+      `<td>${escapeHtml(regningStatusBorger(r.status))}</td>`;
+    tbody.append(tr);
+  }
+}
+
+function renderBorgerSager(liste) {
+  const ul = el("borger-sager");
+  ul.innerHTML = "";
+  el("borger-sager-tom").hidden = liste.length > 0;
+  for (const s of liste) {
+    const li = document.createElement("li");
+    li.className = "borger-liste__item";
+    const resultat = s.afgoerelse_resultat ? ` · Resultat: ${afgResultatBorger(s.afgoerelse_resultat)}` : "";
+    li.innerHTML =
+      `<span class="borger-liste__navn">${escapeHtml(s.sagstype_navn)}</span>` +
+      `<span class="borger-liste__under">Sagsnummer ${escapeHtml(s.sagsnummer)}</span>` +
+      `<span class="borger-liste__under">Status: ${escapeHtml(sagStatusBorger(s.status))}${escapeHtml(resultat)}</span>` +
+      `<span class="borger-liste__under">${escapeHtml(kanalBorger(s.kanal))}</span>`;
+    ul.append(li);
+  }
+}
+
+function renderBorgerKontakt(ejendom) {
+  const c = el("borger-kontakt");
+  c.innerHTML = "";
+  const part = ejendom.min_part;
+  if (!part) {
+    c.innerHTML = '<p class="borger-tom">Der er ingen part knyttet til dig på denne adresse.</p>';
+    return;
+  }
+  const rows =
+    `<div><dt>Navn</dt><dd>${escapeHtml(rentNavn(part.navn))}</dd></div>` +
+    `<div><dt>Type</dt><dd>${escapeHtml(parttypeTekst(part.parttype))}</dd></div>` +
+    (part.cvr_nummer ? `<div><dt>CVR</dt><dd>${escapeHtml(part.cvr_nummer)}</dd></div>` : "") +
+    `<div><dt>E-mail</dt><dd>${escapeHtml(part.email || "Ikke oplyst")}</dd></div>` +
+    `<div><dt>Telefon</dt><dd>${escapeHtml(part.telefon || "Ikke oplyst")}</dd></div>`;
+  const blok = document.createElement("dl");
+  blok.className = "borger-kontakt__liste";
+  blok.innerHTML = rows;
+  const hjaelp = document.createElement("p");
+  hjaelp.className = "borger-panel__hjaelp";
+  hjaelp.textContent =
+    "Navn og type kommer fra folkeregister/CVR og kan ikke rettes her. Du kan rette din e-mail og telefon.";
+  const knap = document.createElement("button");
+  knap.type = "button";
+  knap.className = "knap knap--sekundaer";
+  knap.textContent = "Ret e-mail og telefon";
+  // Genbruger den eksisterende kontakt-dialog (samme validering og historik).
+  knap.addEventListener("click", () => aabnKontaktDialog(part));
+  c.append(blok, hjaelp, knap);
+}
 
 // --- Opstart -----------------------------------------------------------------
 indlaesBrugere();
