@@ -24,6 +24,7 @@ import { DawaFejl, hentJordstykke, soegAdresser, type AdresseForslag } from '../
 import { bindingsperioder, ydelsestyper } from '../ydelser/index.js';
 import { takster } from '../klassifikationer/index.js';
 import {
+  alleLoebende,
   engangsForEjendom,
   fornyLoebende,
   loebendeForEjendom,
@@ -32,17 +33,28 @@ import {
   tilfoejLoebende,
 } from '../data/ydelserStore.js';
 import {
+  alleOpkraevninger,
   danOpkraevning,
   linjerForOpkraevning,
   opkraevningerForEjendom,
   skiftOpkraevningStatus,
 } from '../data/opkraevningStore.js';
+import {
+  byggSagsoverblik,
+  taelPerHastegrad,
+  type Hastegrad,
+  type Kategori,
+  type OverblikOpkraevning,
+  type OverblikSag,
+  type OverblikYdelse,
+} from '../sagsoverblik/index.js';
 import type { OpkraevningStatus } from '../opkraevning/index.js';
 import { ansoegningstyper, findAnsoegningstype, findSagstype, sagstyper } from '../sag/index.js';
 import type { Afgoerelsesresultat, AnsoegningsArt, Ansoegning, SagStatus } from '../sag/index.js';
 import { findYdelsestype } from '../ydelser/index.js';
 import {
   afgoerelseForSag,
+  alleSager,
   beskrivAnsoegning,
   effektuerAnsoegning,
   erEffektueret,
@@ -719,6 +731,90 @@ function haandterMine(res: ServerResponse, bruger: Bruger): void {
   });
 }
 
+// --- Sagsoverblik (prioriteret, kun for sagsbehandlere) ----------------------
+
+/**
+ * GET /api/sagsoverblik?omfang=mine|alle&hastegrad=&kategori= - det prioriterede
+ * sagsoverblik. KUN for sagsbehandlere (en borger afvises med 403). Al beregning,
+ * filtrering og sortering sker HER på serveren; svaret er allerede sorteret og
+ * indeholder totaler pr. hastegrad.
+ */
+function haandterSagsoverblik(res: ServerResponse, bruger: Bruger, params: URLSearchParams): void {
+  if (bruger.rolle !== 'SAGSBEHANDLER') {
+    send403(res, 'Sagsoverblikket er forbeholdt sagsbehandlere.');
+    return;
+  }
+  const idag = new Date().toISOString().slice(0, 10);
+  const omfang = params.get('omfang') === 'alle' ? 'alle' : 'mine';
+
+  // "mine" filtrerer sagerne på ansvarlig bruger. Systemsager (afledte poster)
+  // har ingen ansvarlig og hører til afdelingen - de vises kun i "alle".
+  const sagerRaa = alleSager().filter((s) => omfang === 'alle' || s.ansvarlig_bruger === bruger.navn);
+  const sager: OverblikSag[] = sagerRaa.map((s) => {
+    const type = findSagstype(s.sagstype_id);
+    return {
+      id: s.id,
+      sagsnummer: s.sagsnummer,
+      sagstype_navn: type?.navn ?? s.sagstype_id,
+      sagstype_kode: type?.kode ?? '',
+      ejendom_id: s.ejendom_id,
+      part_id: s.part_id,
+      status: s.status,
+      kanal: s.kanal,
+      modtaget_dato: s.modtaget_dato,
+      frist_dato: s.frist_dato,
+      ansvarlig_bruger: s.ansvarlig_bruger,
+      har_ansoegning: s.ansoegning !== null,
+    };
+  });
+
+  // Systemsager (ydelser der ophører uden fornyelse, forfaldne opkrævninger)
+  // hører til afdelingen og medtages kun i "alle".
+  let ydelser: OverblikYdelse[] = [];
+  let opkraevninger: OverblikOpkraevning[] = [];
+  if (omfang === 'alle') {
+    const alleY = alleLoebende();
+    const fornyet = new Set(alleY.map((y) => y.forrige_ydelse_id).filter((id): id is string => id !== null));
+    ydelser = alleY.map((y) => ({
+      id: y.id,
+      ejendom_id: y.ejendom_id,
+      navn: findYdelsestype(y.ydelsestype_id)?.navn ?? y.ydelsestype_id,
+      gyldig_til: y.gyldig_til,
+      fornyet: fornyet.has(y.id),
+    }));
+    opkraevninger = alleOpkraevninger().map((o) => ({
+      id: o.id,
+      ejendom_id: o.ejendom_id,
+      periode_fra: o.periode_fra,
+      periode_til: o.periode_til,
+      status: o.status,
+      dannet_dato: o.dannet_dato,
+    }));
+  }
+
+  const alle = byggSagsoverblik({ paaDato: idag, sager, ydelser, opkraevninger });
+  // Totaler beregnes over hele omfanget (før hastegrad/kategori-filtrene), så
+  // nøgletalskortene viser de sande tal.
+  const totaler = taelPerHastegrad(alle);
+
+  const hastegradFilter = params.get('hastegrad') as Hastegrad | null;
+  const kategoriFilter = params.get('kategori') as Kategori | null;
+  const filtreret = alle.filter(
+    (p) =>
+      (!hastegradFilter || p.hastegrad === hastegradFilter) &&
+      (!kategoriFilter || p.kategori === kategoriFilter),
+  );
+
+  // Berig med adresse og partnavn, så frontend kan vise ejendom/part uden opslag.
+  const poster = filtreret.map((p) => ({
+    ...p,
+    ejendom_adresse: findEjendom(p.ejendom_id)?.adressetekst ?? p.ejendom_id,
+    part_navn: p.part_id ? findPart(p.part_id)?.navn ?? null : null,
+  }));
+
+  sendJson(res, 200, { omfang, totaler, poster });
+}
+
 // --- Statiske filer ----------------------------------------------------------
 
 async function serverStatiskFil(res: ServerResponse, urlSti: string): Promise<void> {
@@ -914,6 +1010,8 @@ async function haandter(req: IncomingMessage, res: ServerResponse): Promise<void
   if (sti === '/api/brugere') return haandterBrugere(res);
 
   if (sti === '/api/mine') return haandterMine(res, bruger);
+
+  if (sti === '/api/sagsoverblik') return haandterSagsoverblik(res, bruger, url.searchParams);
 
   const ydelserMatch = sti.match(/^\/api\/ejendomme\/([^/]+)\/ydelser$/);
   if (ydelserMatch) {

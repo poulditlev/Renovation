@@ -96,6 +96,13 @@
         </div>
       </header>
 
+      <!-- Faner (kun sagsbehandler): skift mellem ejendomsfladen og det
+           prioriterede sagsoverblik "Mine sager". -->
+      <nav class="faner" id="faner" aria-label="Visning">
+        <button type="button" class="fane" id="fane-ejendom" data-fane="ejendom" aria-pressed="true">Ejendom</button>
+        <button type="button" class="fane" id="fane-overblik" data-fane="overblik" aria-pressed="false">Mine sager</button>
+      </nav>
+
       <!-- Kontekstlinje: viser adresse, BFE, kommune og part for valgt ejendom. -->
       <div class="kontekst" id="kontekst" role="region" aria-label="Valgt ejendom" aria-live="polite">
         <p id="kontekst-tom" class="kontekst__tom">
@@ -289,6 +296,68 @@
          rollen i rolleskifteren er BORGER; sagsbehandlerfladen skjules da. Al
          filtrering sker på serveren (GET /api/mine) — borgeren får aldrig
          andres data sendt over ledningen. -->
+    <!-- MINE SAGER: prioriteret sagsoverblik (kun sagsbehandler). Beregnet
+         visning oven på de eksisterende sager; åbnes via fanen. -->
+    <main class="sagsoverblik" id="sagsoverblik" tabindex="-1" aria-label="Mine sager – prioriteret overblik">
+      <div class="overblik-hoved">
+        <h1 class="overblik-titel">Mine sager</h1>
+        <div class="overblik-omfang" role="group" aria-label="Omfang">
+          <button type="button" class="omfang-knap" id="omfang-mine" data-omfang="mine" aria-pressed="true">Mine</button>
+          <button type="button" class="omfang-knap" id="omfang-alle" data-omfang="alle" aria-pressed="false">Hele afdelingen</button>
+        </div>
+      </div>
+
+      <!-- Nøgletalskort: klikbare filtre på hastegrad. Hastegrad vises med både
+           farve og tekst (aldrig farve alene). -->
+      <div class="noegletal" role="group" aria-label="Filtrér på hastegrad">
+        <button type="button" class="noegletal-kort noegletal-kort--kritisk" data-hastegrad="KRITISK" aria-pressed="false">
+          <span class="noegletal-kort__tal" id="tal-KRITISK">0</span>
+          <span class="noegletal-kort__navn">Kritisk</span>
+        </button>
+        <button type="button" class="noegletal-kort noegletal-kort--hoej" data-hastegrad="HOEJ" aria-pressed="false">
+          <span class="noegletal-kort__tal" id="tal-HOEJ">0</span>
+          <span class="noegletal-kort__navn">Høj</span>
+        </button>
+        <button type="button" class="noegletal-kort noegletal-kort--normal" data-hastegrad="NORMAL" aria-pressed="false">
+          <span class="noegletal-kort__tal" id="tal-NORMAL">0</span>
+          <span class="noegletal-kort__navn">Normal</span>
+        </button>
+        <button type="button" class="noegletal-kort noegletal-kort--afventer" data-hastegrad="AFVENTER" aria-pressed="false">
+          <span class="noegletal-kort__tal" id="tal-AFVENTER">0</span>
+          <span class="noegletal-kort__navn">Afventer</span>
+        </button>
+      </div>
+
+      <!-- Kategori-filtre (chips) -->
+      <div class="chips" role="group" aria-label="Filtrér på kategori">
+        <button type="button" class="chip" data-kategori="" aria-pressed="true">Alle</button>
+        <button type="button" class="chip" data-kategori="SELVBETJENING" aria-pressed="false">Selvbetjening</button>
+        <button type="button" class="chip" data-kategori="KLAGE" aria-pressed="false">Klager</button>
+        <button type="button" class="chip" data-kategori="UDLOEB_YDELSE" aria-pressed="false">Udløb af ydelse</button>
+        <button type="button" class="chip" data-kategori="BETALING" aria-pressed="false">Betaling</button>
+        <button type="button" class="chip" data-kategori="FRIST" aria-pressed="false">Frist</button>
+      </div>
+
+      <div class="tabelramme">
+        <table class="datatabel overblik-tabel">
+          <caption class="visuelt-skjult">Prioriteret liste over sager og systemsager</caption>
+          <thead>
+            <tr>
+              <th scope="col">Hastegrad</th>
+              <th scope="col">Sag</th>
+              <th scope="col">Kategori</th>
+              <th scope="col">Ejendom / part</th>
+              <th scope="col">Frist</th>
+              <th scope="col">Kanal</th>
+            </tr>
+          </thead>
+          <tbody id="overblik-tabel"></tbody>
+        </table>
+      </div>
+      <p id="overblik-tom" class="tomtilstand" hidden>Ingen sager matcher de valgte filtre.</p>
+      <p id="overblik-fejl" class="fejlbesked" role="alert" hidden></p>
+    </main>
+
     <main class="borgerflade" id="borgerflade" tabindex="-1" aria-label="Min selvbetjening">
       <div class="borger-intro">
         <h1 class="borger-intro__titel">Min side</h1>

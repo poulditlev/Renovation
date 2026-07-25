@@ -31,6 +31,11 @@ export function loebendeForEjendom(ejendomId: string): LoebendeYdelse[] {
   return loebendeYdelser.filter((y) => y.ejendom_id === ejendomId);
 }
 
+/** Alle løbende ydelser (til det tværgående sagsoverblik). */
+export function alleLoebende(): LoebendeYdelse[] {
+  return loebendeYdelser;
+}
+
 export function engangsForEjendom(ejendomId: string): Engangsleverance[] {
   return engangsleverancer.filter((e) => e.ejendom_id === ejendomId);
 }

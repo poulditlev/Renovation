@@ -871,6 +871,8 @@ el("dan-opkraevning").addEventListener("click", async () => {
 let sager = [];
 let valgtSagId = null;
 let sagskatalog = { sagstyper: [] };
+// Sag der ønskes åbnet direkte (fx fra sagsoverblikket).
+let oensketSagId = null;
 
 function ryddSager() {
   sager = [];
@@ -885,11 +887,18 @@ async function indlaesSager(ejendomId) {
     const data = await hentJson(`/api/ejendomme/${encodeURIComponent(ejendomId)}/sager`);
     sager = data.sager || [];
     renderSagsliste();
-    // Behold valgt sag hvis den stadig findes, ellers vælg den første.
-    const stadig = sager.find((s) => s.sag.id === valgtSagId);
-    if (stadig) renderSagDetalje(stadig);
-    else if (sager.length > 0) vaelgSag(sager[0].sag.id);
-    else el("sag-detalje").innerHTML = '<p class="tomtilstand">Ingen sager. Opret en sag med "+ Opret sag".</p>';
+    // Kommer man fra sagsoverblikket, vælges den ønskede sag direkte.
+    const oensket = oensketSagId ? sager.find((s) => s.sag.id === oensketSagId) : null;
+    oensketSagId = null;
+    if (oensket) {
+      vaelgSag(oensket.sag.id);
+    } else {
+      // Behold valgt sag hvis den stadig findes, ellers vælg den første.
+      const stadig = sager.find((s) => s.sag.id === valgtSagId);
+      if (stadig) renderSagDetalje(stadig);
+      else if (sager.length > 0) vaelgSag(sager[0].sag.id);
+      else el("sag-detalje").innerHTML = '<p class="tomtilstand">Ingen sager. Opret en sag med "+ Opret sag".</p>';
+    }
   } catch {
     ryddSager();
   }
@@ -1435,6 +1444,9 @@ function nulstilVisning() {
   registerEjendomme = [];
   dawaForslag = [];
   visSoegefejl("");
+  // Tilbage til ejendomsfanen og nulstil overbliksfiltrene ved rolleskift.
+  nulstilOverblikFiltre();
+  visFane("ejendom");
 }
 
 el("rolle-vaelger").addEventListener("change", (ev) => skiftRolle(ev.target.value));
@@ -1796,6 +1808,132 @@ el("ansoeg-form").addEventListener("submit", async (ev) => {
     f.hidden = false;
   }
 });
+
+// --- Mine sager: prioriteret sagsoverblik (kun sagsbehandler) ----------------
+let overblikOmfang = "mine";
+let overblikHastegrad = "";
+let overblikKategori = "";
+
+const HASTEGRAD_TEKST = { KRITISK: "Kritisk", HOEJ: "Høj", NORMAL: "Normal", AFVENTER: "Afventer" };
+const OVERBLIK_KATEGORI_TEKST = {
+  SELVBETJENING: "Selvbetjening",
+  KLAGE: "Klage",
+  UDLOEB_YDELSE: "Udløb af ydelse",
+  BETALING: "Betaling",
+  FRIST: "Frist",
+  OEVRIGT: "Øvrigt",
+};
+
+function visFane(fane) {
+  const overblik = fane === "overblik";
+  document.body.classList.toggle("visning-overblik", overblik);
+  el("fane-ejendom").setAttribute("aria-pressed", String(!overblik));
+  el("fane-overblik").setAttribute("aria-pressed", String(overblik));
+  if (overblik) {
+    el("sagsoverblik").focus();
+    indlaesOverblik();
+  }
+}
+
+function nulstilOverblikFiltre() {
+  overblikOmfang = "mine";
+  overblikHastegrad = "";
+  overblikKategori = "";
+  document.querySelectorAll(".omfang-knap").forEach((x) =>
+    x.setAttribute("aria-pressed", String(x.getAttribute("data-omfang") === "mine"))
+  );
+  document.querySelectorAll(".noegletal-kort").forEach((x) => x.setAttribute("aria-pressed", "false"));
+  document.querySelectorAll(".chip").forEach((x) =>
+    x.setAttribute("aria-pressed", String(x.getAttribute("data-kategori") === ""))
+  );
+}
+
+async function indlaesOverblik() {
+  const fejl = el("overblik-fejl");
+  fejl.hidden = true;
+  const p = new URLSearchParams({ omfang: overblikOmfang });
+  if (overblikHastegrad) p.set("hastegrad", overblikHastegrad);
+  if (overblikKategori) p.set("kategori", overblikKategori);
+  try {
+    const data = await hentJson(`/api/sagsoverblik?${p.toString()}`);
+    renderOverblikTotaler(data.totaler || {});
+    renderOverblikTabel(data.poster || []);
+  } catch (e) {
+    fejl.textContent = `Overblikket kunne ikke hentes: ${e.message}`;
+    fejl.hidden = false;
+  }
+}
+
+function renderOverblikTotaler(totaler) {
+  for (const h of ["KRITISK", "HOEJ", "NORMAL", "AFVENTER"]) {
+    el(`tal-${h}`).textContent = totaler[h] != null ? totaler[h] : 0;
+  }
+}
+
+function renderOverblikTabel(poster) {
+  const tbody = el("overblik-tabel");
+  tbody.innerHTML = "";
+  el("overblik-tom").hidden = poster.length > 0;
+  for (const post of poster) {
+    const tr = document.createElement("tr");
+    tr.className = "overblik-raekke" + (post.hastegrad === "KRITISK" ? " overblik-raekke--kritisk" : "");
+    const sagLabel = post.sagsnummer ? post.sagsnummer : "Systemsag";
+    const ariaLabel = `Åbn ${sagLabel}: ${post.titel}`;
+    tr.innerHTML =
+      `<td><span class="hastegrad-pil hastegrad-${escapeHtml(post.hastegrad)}">${escapeHtml(HASTEGRAD_TEKST[post.hastegrad] || post.hastegrad)}</span></td>` +
+      `<td class="overblik-titel-celle"><button type="button" class="sagknap" aria-label="${escapeHtml(ariaLabel)}">${escapeHtml(sagLabel)}</button>` +
+      `<span class="undertekst">${escapeHtml(post.titel)}</span></td>` +
+      `<td>${escapeHtml(OVERBLIK_KATEGORI_TEKST[post.kategori] || post.kategori)}</td>` +
+      `<td>${escapeHtml(post.ejendom_adresse || post.ejendom_id)}${post.part_navn ? " · " + escapeHtml(rentNavn(post.part_navn)) : ""}</td>` +
+      `<td class="overblik-frist-celle">${escapeHtml(post.fristtekst)}<span class="undertekst">${escapeHtml(post.fristdato)}</span></td>` +
+      `<td>${post.kanal ? escapeHtml(kanalTekst(post.kanal)) : "—"}</td>`;
+    const aabn = () => aabnSagFraOverblik(post);
+    tr.querySelector(".sagknap").addEventListener("click", (ev) => {
+      ev.stopPropagation();
+      aabn();
+    });
+    tr.addEventListener("click", aabn);
+    tbody.append(tr);
+  }
+}
+
+async function aabnSagFraOverblik(post) {
+  oensketSagId = post.sag_id || null;
+  visFane("ejendom");
+  await aabnEjendom(post.ejendom_id);
+}
+
+el("fane-ejendom").addEventListener("click", () => visFane("ejendom"));
+el("fane-overblik").addEventListener("click", () => visFane("overblik"));
+
+document.querySelectorAll(".omfang-knap").forEach((b) =>
+  b.addEventListener("click", () => {
+    overblikOmfang = b.getAttribute("data-omfang");
+    document.querySelectorAll(".omfang-knap").forEach((x) => x.setAttribute("aria-pressed", String(x === b)));
+    indlaesOverblik();
+  })
+);
+
+// Nøgletalskort = filter på hastegrad (klik igen fjerner filteret).
+document.querySelectorAll(".noegletal-kort").forEach((kort) =>
+  kort.addEventListener("click", () => {
+    const h = kort.getAttribute("data-hastegrad");
+    overblikHastegrad = overblikHastegrad === h ? "" : h;
+    document.querySelectorAll(".noegletal-kort").forEach((x) =>
+      x.setAttribute("aria-pressed", String(x.getAttribute("data-hastegrad") === overblikHastegrad))
+    );
+    indlaesOverblik();
+  })
+);
+
+// Kategori-chips (enkeltvalg).
+document.querySelectorAll(".chip").forEach((chip) =>
+  chip.addEventListener("click", () => {
+    overblikKategori = chip.getAttribute("data-kategori");
+    document.querySelectorAll(".chip").forEach((x) => x.setAttribute("aria-pressed", String(x === chip)));
+    indlaesOverblik();
+  })
+);
 
 // --- Opstart -----------------------------------------------------------------
 indlaesBrugere();

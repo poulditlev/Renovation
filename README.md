@@ -164,6 +164,32 @@ Domænelaget er uændret; ansøgningsindholdet ligger som data på sagen
 ([`datamodel.md`](./datamodel.md) afsnit 5), og adgangsreglerne er de samme som
 i afsnit 6, blot udvidet med to navngivne handlinger.
 
+**Lag 8 — Prioriteret sagsoverblik "Mine sager"** (`src/sagsoverblik/`, `src/server/`, `public/`)
+
+En **beregnet** visning for sagsbehandleren oven på de eksisterende sager,
+ydelser og opkrævninger. Den skaber ingen nye data: **hastegrad** og **kategori**
+udledes af rene funktioner og sættes aldrig manuelt.
+
+- **Hastegrad** (KRITISK / HOEJ / NORMAL / AFVENTER) beregnes ud fra sagsfrister,
+  ydelsers udløb uden fornyelse og opkrævningers betalingsstatus. Grænseværdierne
+  (3/7/1/5 dage m.m.) ligger som navngivne konstanter ét sted.
+- **Kategori** (SELVBETJENING, KLAGE, UDLOEB_YDELSE, BETALING, FRIST, ØVRIGT)
+  udledes efter en fast, dokumenteret prioritetsrækkefølge.
+- **Systemsager** — ydelser der ophører uden fornyelse og forfaldne opkrævninger —
+  udledes som **lette afledte poster** (ikke rigtige sager); se
+  [`datamodel.md`](./datamodel.md) afsnit 7.
+- **API:** `GET /api/sagsoverblik?omfang=mine|alle&hastegrad=&kategori=` er
+  **kun for sagsbehandlere** (en borger afvises med 403). Al beregning,
+  filtrering og sortering sker på serveren; svaret er allerede sorteret
+  (kritisk først, derefter frist) og indeholder totaler pr. hastegrad.
+- **Brugerflade:** en "Mine sager"-fane med fire klikbare nøgletalskort (filter
+  på hastegrad), kategori-chips, og en tabel sorteret efter hastegrad. Kritiske
+  rækker fremhæves, hastegrad vises med **både farve og tekst**, og et klik på en
+  række åbner sagen i den eksisterende sagsvisning. Skift mellem "Mine" og
+  "Hele afdelingen". Fristerne vises i klar tale ("Overskredet 2 dage",
+  "Udløber i morgen", "Frist om 4 dage"). WCAG 2.1 AA: knapper med `aria-pressed`,
+  `<th scope="col">`, tastaturnavigation, aldrig farve alene.
+
 ## Kør appen lokalt
 
 ```bash
