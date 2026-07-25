@@ -1866,11 +1866,24 @@ async function indlaesOverblik() {
   try {
     const data = await hentJson(`/api/sagsoverblik?${p.toString()}`);
     renderOverblikTotaler(data.totaler || {});
+    renderAfdelingBadge(data.afdeling_total || 0);
     renderOverblikTabel(data.poster || []);
   } catch (e) {
     fejl.textContent = `Overblikket kunne ikke hentes: ${e.message}`;
     fejl.hidden = false;
   }
+}
+
+// Rød boble med antal sager for hele afdelingen. Tallet gøres tilgængeligt for
+// skærmlæsere via knappens aria-label (selve boblen er aria-hidden).
+function renderAfdelingBadge(antal) {
+  const badge = el("afdeling-badge");
+  badge.textContent = String(antal);
+  badge.hidden = antal === 0;
+  el("omfang-alle").setAttribute(
+    "aria-label",
+    antal > 0 ? `Hele afdelingen, ${antal} ${antal === 1 ? "sag" : "sager"}` : "Hele afdelingen"
+  );
 }
 
 function renderOverblikTotaler(totaler) {

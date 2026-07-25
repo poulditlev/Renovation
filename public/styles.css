@@ -1194,9 +1194,10 @@ body.visning-overblik .layout {
   display: inline-flex;
   border: 1px solid var(--graa-kant-moerk);
   border-radius: 4px;
-  overflow: hidden;
+  /* Ingen overflow:hidden - så afdelingsboblen kan rage op over knappen. */
 }
 .omfang-knap {
+  position: relative; /* holdepunkt for afdelingsboblen */
   font: inherit;
   cursor: pointer;
   background: #fff;
@@ -1204,12 +1205,38 @@ body.visning-overblik .layout {
   border: none;
   padding: 0.4rem 0.85rem;
 }
+.omfang-knap:first-child {
+  border-radius: 3px 0 0 3px;
+}
+.omfang-knap:last-child {
+  border-radius: 0 3px 3px 0;
+}
 .omfang-knap + .omfang-knap {
   border-left: 1px solid var(--graa-kant-moerk);
 }
 .omfang-knap[aria-pressed="true"] {
   background: var(--blaa);
   color: #fff;
+}
+
+/* Rød notifikationsboble med antal sager for hele afdelingen. */
+.afdeling-badge {
+  position: absolute;
+  top: -9px;
+  right: -9px;
+  min-width: 1.3rem;
+  height: 1.3rem;
+  padding: 0 0.35rem;
+  box-sizing: border-box;
+  border-radius: 999px;
+  background: #b3261e; /* rød; hvid tekst giver ~6,5:1 (WCAG AA) */
+  color: #fff;
+  border: 2px solid var(--graa-bg); /* ring der løfter boblen fra baggrunden */
+  font-size: 0.72rem;
+  font-weight: 700;
+  line-height: calc(1.3rem - 4px);
+  text-align: center;
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.3);
 }
 
 /* Nøgletalskort */

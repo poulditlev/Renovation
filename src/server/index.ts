@@ -747,10 +747,9 @@ function haandterSagsoverblik(res: ServerResponse, bruger: Bruger, params: URLSe
   const idag = new Date().toISOString().slice(0, 10);
   const omfang = params.get('omfang') === 'alle' ? 'alle' : 'mine';
 
-  // "mine" filtrerer sagerne på ansvarlig bruger. Systemsager (afledte poster)
-  // har ingen ansvarlig og hører til afdelingen - de vises kun i "alle".
-  const sagerRaa = alleSager().filter((s) => omfang === 'alle' || s.ansvarlig_bruger === bruger.navn);
-  const sager: OverblikSag[] = sagerRaa.map((s) => {
+  // Afdelingens FULDE inputsæt (uafhængigt af omfang). Bruges til afdelings-
+  // tælleren (badgen) og - når omfang=alle - direkte til listen.
+  const alleSagInput: OverblikSag[] = alleSager().map((s) => {
     const type = findSagstype(s.sagstype_id);
     return {
       id: s.id,
@@ -767,39 +766,52 @@ function haandterSagsoverblik(res: ServerResponse, bruger: Bruger, params: URLSe
       har_ansoegning: s.ansoegning !== null,
     };
   });
+  const alleY = alleLoebende();
+  const fornyet = new Set(alleY.map((y) => y.forrige_ydelse_id).filter((id): id is string => id !== null));
+  const alleYdelseInput: OverblikYdelse[] = alleY.map((y) => ({
+    id: y.id,
+    ejendom_id: y.ejendom_id,
+    navn: findYdelsestype(y.ydelsestype_id)?.navn ?? y.ydelsestype_id,
+    gyldig_til: y.gyldig_til,
+    fornyet: fornyet.has(y.id),
+  }));
+  const alleOpkrInput: OverblikOpkraevning[] = alleOpkraevninger().map((o) => ({
+    id: o.id,
+    ejendom_id: o.ejendom_id,
+    periode_fra: o.periode_fra,
+    periode_til: o.periode_til,
+    status: o.status,
+    dannet_dato: o.dannet_dato,
+  }));
 
-  // Systemsager (ydelser der ophører uden fornyelse, forfaldne opkrævninger)
-  // hører til afdelingen og medtages kun i "alle".
-  let ydelser: OverblikYdelse[] = [];
-  let opkraevninger: OverblikOpkraevning[] = [];
-  if (omfang === 'alle') {
-    const alleY = alleLoebende();
-    const fornyet = new Set(alleY.map((y) => y.forrige_ydelse_id).filter((id): id is string => id !== null));
-    ydelser = alleY.map((y) => ({
-      id: y.id,
-      ejendom_id: y.ejendom_id,
-      navn: findYdelsestype(y.ydelsestype_id)?.navn ?? y.ydelsestype_id,
-      gyldig_til: y.gyldig_til,
-      fornyet: fornyet.has(y.id),
-    }));
-    opkraevninger = alleOpkraevninger().map((o) => ({
-      id: o.id,
-      ejendom_id: o.ejendom_id,
-      periode_fra: o.periode_fra,
-      periode_til: o.periode_til,
-      status: o.status,
-      dannet_dato: o.dannet_dato,
-    }));
-  }
+  // Hele afdelingens poster (inkl. systemsager) - antallet vises i badgen.
+  const afdelingPoster = byggSagsoverblik({
+    paaDato: idag,
+    sager: alleSagInput,
+    ydelser: alleYdelseInput,
+    opkraevninger: alleOpkrInput,
+  });
+  const afdeling_total = afdelingPoster.length;
 
-  const alle = byggSagsoverblik({ paaDato: idag, sager, ydelser, opkraevninger });
-  // Totaler beregnes over hele omfanget (før hastegrad/kategori-filtrene), så
-  // nøgletalskortene viser de sande tal.
-  const totaler = taelPerHastegrad(alle);
+  // "mine" filtrerer sagerne på ansvarlig bruger; systemsager (uden ansvarlig)
+  // hører til afdelingen og vises kun i "alle".
+  const valgtePoster =
+    omfang === 'alle'
+      ? afdelingPoster
+      : byggSagsoverblik({
+          paaDato: idag,
+          sager: alleSagInput.filter((s) => s.ansvarlig_bruger === bruger.navn),
+          ydelser: [],
+          opkraevninger: [],
+        });
+
+  // Totaler beregnes over den valgte visning (før hastegrad/kategori-filtrene),
+  // så nøgletalskortene viser de sande tal.
+  const totaler = taelPerHastegrad(valgtePoster);
 
   const hastegradFilter = params.get('hastegrad') as Hastegrad | null;
   const kategoriFilter = params.get('kategori') as Kategori | null;
-  const filtreret = alle.filter(
+  const filtreret = valgtePoster.filter(
     (p) =>
       (!hastegradFilter || p.hastegrad === hastegradFilter) &&
       (!kategoriFilter || p.kategori === kategoriFilter),
@@ -812,7 +824,7 @@ function haandterSagsoverblik(res: ServerResponse, bruger: Bruger, params: URLSe
     part_navn: p.part_id ? findPart(p.part_id)?.navn ?? null : null,
   }));
 
-  sendJson(res, 200, { omfang, totaler, poster });
+  sendJson(res, 200, { omfang, totaler, afdeling_total, poster });
 }
 
 // --- Statiske filer ----------------------------------------------------------
