@@ -133,7 +133,36 @@ Systemet har nu **to visninger af samme domæne**, styret af rolleskifteren:
 Borgerfladen er en **tynd frontend** oven på de eksisterende API'er plus én ny
 GET-rute, `/api/mine`, der bygger og **filtrerer borgerens overblik på serveren**.
 Domænelaget er uændret; borgeren får aldrig andres data sendt over ledningen.
-Dette er en ren læseflade — borgeren kan endnu ikke ansøge.
+
+**Lag 7 — Selvbetjeningsansøgning: sløjfen lukkes** (`src/sag/ansoegning.ts`, `src/data/sagStore.ts`, `src/server/`, `public/`)
+
+Borgeren kan nu **ansøge** om ydelser via selvbetjening — og sløjfen lukkes:
+borgeren ansøger, systemet opretter en sag, sagsbehandleren afgør den og kan
+effektuere den.
+
+- **En ansøgning opretter en SAG, ikke en ydelse.** Borgeren kan ansøge om
+  ekstra beholder, anden beholderstørrelse, ekstra sæt sække til farligt affald
+  eller afmelding af en løbende ydelse. Ansøgningen bliver til en sag med status
+  `MODTAGET` og kanal `SELVBETJENING`; hvad der blev ansøgt om (art, størrelse,
+  ønsket dato) gemmes på sagen. Der oprettes **aldrig** en ydelse direkte.
+- **Håndhævet på serveren.** Ansøgnings-endpointet (`POST /api/ejendomme/:id/ansoegninger`)
+  kræver borgerrettigheden `ANSOEG_SELVBETJENING` og adgang til **egen** ejendom;
+  det afviser alt andet end at oprette en sag. En borger må fortsat **aldrig**
+  oprette ydelser, forny eller danne opkrævninger — det giver 403.
+- **Sagsbehandlerens side.** Selvbetjeningssager er tydeligt markeret i sagslisten
+  (kanal + hvad der er ansøgt om). Når sagsbehandleren træffer en imødekommende
+  afgørelse (hjemmel obligatorisk, som hidtil), kan ansøgningen **effektueres** —
+  en eksplicit handling der opretter den ansøgte ydelse ved at **genbruge** den
+  almindelige ydelses-oprettelse (ingen parallel vej), med korrekt periode.
+- **Borgerens overblik.** Efter ansøgningen ser borgeren sagen under "Mine sager"
+  med status i klar tale (Modtaget → Under behandling → Afgjort). Borgeren kan
+  følge sagen, men endnu ikke ændre eller trække den tilbage.
+- **Sporbarhed.** Hele forløbet — ansøgning (med hvem og i hvilken rolle),
+  afgørelse og effektuering — står i sagens append-only journal.
+
+Domænelaget er uændret; ansøgningsindholdet ligger som data på sagen
+([`datamodel.md`](./datamodel.md) afsnit 5), og adgangsreglerne er de samme som
+i afsnit 6, blot udvidet med to navngivne handlinger.
 
 ## Kør appen lokalt
 

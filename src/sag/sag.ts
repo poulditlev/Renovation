@@ -14,6 +14,30 @@ export type Afgoerelsesresultat = 'IMOEDEKOMMET' | 'DELVIST' | 'AFSLAG';
  */
 export type SagKanal = 'SELVBETJENING' | 'SAGSBEHANDLER';
 
+/** Hvad en borger kan ansøge om via selvbetjening. */
+export type AnsoegningsArt = 'EKSTRA_BEHOLDER' | 'ANDEN_STOERRELSE' | 'FARLIGT_SAEK' | 'AFMELDING';
+
+/**
+ * Hvad borgeren har ansøgt om. Gemmes SOM DEL AF sagen, så sagsbehandleren kan
+ * se det. En ansøgning ændrer ALDRIG ydelser eller materiel direkte - det er
+ * først sagsbehandlerens (imødekommende) afgørelse der effektueres til en ydelse.
+ */
+export interface Ansoegning {
+  art: AnsoegningsArt;
+  /** Den ansøgte ydelsestype (for beholder/størrelse/farligt sæk). */
+  ydelsestype_id: string | null;
+  /** Materieltype udledt af ydelsestypen (for periodiske beholderydelser). */
+  materieltype_id: string | null;
+  /** Antal for engangsydelser (fx sæt sække). */
+  antal: number | null;
+  /** Ønsket startdato/leveringsdato. */
+  oensket_startdato: string | null;
+  /** Ved AFMELDING: hvilken løbende ydelse borgeren vil afmelde. */
+  afmeld_ydelse_id: string | null;
+  /** Fri bemærkning fra borgeren. */
+  note: string | null;
+}
+
 /** Svarer til tabellen `sag`. */
 export interface Sag {
   id: Id;
@@ -27,6 +51,8 @@ export interface Sag {
   frist_dato: string;
   ansvarlig_bruger: string | null;
   lukket_dato: string | null;
+  /** Ansøgningens indhold, hvis sagen er opstået af en borgeransøgning. */
+  ansoegning: Ansoegning | null;
 }
 
 /** Svarer til tabellen `afgoerelse`. `hjemmel` er obligatorisk. */
@@ -68,6 +94,8 @@ export interface OpretSagInput {
   ansvarlig_bruger?: string | null;
   /** Hvordan sagen opstod. Default SAGSBEHANDLER; borger-oprettede får SELVBETJENING. */
   kanal?: SagKanal;
+  /** Ansøgningens indhold, hvis sagen kommer fra en borgeransøgning. */
+  ansoegning?: Ansoegning | null;
 }
 
 /**
@@ -91,6 +119,7 @@ export function opretSag(input: OpretSagInput): Sag {
     frist_dato: addDage(input.modtaget_dato, type.sagsbehandlingsfrist_dage),
     ansvarlig_bruger: input.ansvarlig_bruger ?? null,
     lukket_dato: null,
+    ansoegning: input.ansoegning ?? null,
   };
 }
 

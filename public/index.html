@@ -307,6 +307,18 @@
       </section>
 
       <div id="borger-detalje" hidden>
+        <!-- Ansøg om en ydelse. En ansøgning opretter en SAG (ikke en ydelse);
+             sagsbehandleren afgør den. Borgeren kan ikke selv oprette ydelser. -->
+        <section class="borger-panel borger-panel--ansoeg" aria-labelledby="ba-titel">
+          <h2 id="ba-titel" class="borger-panel__titel">Ansøg om en ydelse</h2>
+          <p class="borger-panel__hjaelp">
+            Når du ansøger, opretter vi en sag, som en sagsbehandler tager stilling til. Du kan følge
+            sagen under "Mine sager". Der oprettes ikke noget automatisk.
+          </p>
+          <button type="button" class="knap" id="borger-ansoeg-knap">Ansøg om en ydelse</button>
+          <p id="borger-ansoeg-bekraeft" class="kontakt-bekraeft" role="status" aria-live="polite" hidden></p>
+        </section>
+
         <!-- Mine ydelser -->
         <section class="borger-panel" aria-labelledby="by-titel">
           <h2 id="by-titel" class="borger-panel__titel">Mine ydelser</h2>
@@ -476,6 +488,60 @@
         <div class="dialog__knapper">
           <button type="button" class="knap knap--sekundaer" id="afg-annuller">Annullér</button>
           <button type="submit" class="knap">Registrér afgørelse</button>
+        </div>
+      </form>
+    </dialog>
+
+    <!-- Borgerens ansøgningsdialog. Opretter KUN en sag; ingen ydelse dannes. -->
+    <dialog id="ansoeg-dialog" class="dialog" aria-labelledby="ansoeg-dialog-titel">
+      <form method="dialog" id="ansoeg-form" class="dialog__form" novalidate>
+        <h2 id="ansoeg-dialog-titel" class="dialog__titel">Ansøg om en ydelse</h2>
+        <p class="hjaelptekst">
+          Vælg hvad du vil ansøge om. Ansøgningen bliver til en sag, som en sagsbehandler afgør.
+        </p>
+
+        <p class="dialog__felt">
+          <label for="an-art">Hvad vil du ansøge om?</label>
+          <select id="an-art" required></select>
+          <span id="an-art-beskrivelse" class="hjaelptekst"></span>
+        </p>
+
+        <!-- Beholderstørrelse (for ekstra beholder / anden størrelse) -->
+        <p class="dialog__felt" id="an-stoerrelse-felt" hidden>
+          <label for="an-stoerrelse">Beholderstørrelse</label>
+          <select id="an-stoerrelse" aria-describedby="an-stoerrelse-fejl"></select>
+          <span id="an-stoerrelse-fejl" class="fejlbesked" role="alert" hidden></span>
+        </p>
+
+        <!-- Antal (for sæt sække til farligt affald) -->
+        <p class="dialog__felt" id="an-antal-felt" hidden>
+          <label for="an-antal">Antal sæt</label>
+          <input type="number" id="an-antal" min="1" step="1" value="1" />
+        </p>
+
+        <!-- Afmeld-valg (for afmelding af en løbende ydelse) -->
+        <p class="dialog__felt" id="an-afmeld-felt" hidden>
+          <label for="an-afmeld">Hvilken ordning vil du afmelde?</label>
+          <select id="an-afmeld" aria-describedby="an-afmeld-fejl"></select>
+          <span id="an-afmeld-fejl" class="fejlbesked" role="alert" hidden></span>
+        </p>
+
+        <p class="dialog__felt">
+          <label for="an-dato" id="an-dato-label">Ønsket startdato</label>
+          <input type="date" id="an-dato" aria-describedby="an-dato-hjaelp" />
+          <span id="an-dato-hjaelp" class="hjaelptekst">Angiv gerne fra hvornår. Kan efterlades tom.</span>
+        </p>
+
+        <p class="dialog__felt">
+          <label for="an-note">Bemærkning (valgfri)</label>
+          <textarea id="an-note" rows="2"></textarea>
+        </p>
+
+        <p id="ansoeg-dialog-fejl" class="fejlbesked" role="alert" hidden></p>
+
+        <div class="dialog__knapper">
+          <button type="button" class="knap knap--sekundaer" id="ansoeg-annuller">Annullér</button>
+          <button type="submit" class="knap">Send ansøgning</button>
         </div>
       </form>
     </dialog>

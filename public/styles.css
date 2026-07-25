@@ -1063,3 +1063,47 @@ body.rolle-borger .layout {
 .borger-kontakt__liste dd {
   margin: 0;
 }
+.borger-panel--ansoeg {
+  border-left: 4px solid var(--blaa-lys);
+}
+
+/* Sagsbehandler: markering af selvbetjeningssager + ansøgningsinfo + effektuer */
+.kanal-maerke {
+  display: inline-block;
+  font-size: 0.68rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.03em;
+  background: var(--blaa);
+  color: #fff;
+  border-radius: 3px;
+  padding: 0.02rem 0.35rem;
+  vertical-align: middle;
+}
+.ansoeg-info {
+  margin: 0.4rem 0 0.6rem;
+  padding: 0.5rem 0.7rem;
+  background: #eef3f8;
+  border: 1px solid var(--blaa-kant);
+  border-left-width: 4px;
+  border-radius: 2px;
+  font-size: 0.9rem;
+}
+.effektuer-blok {
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+  margin-top: 0.4rem;
+  padding-top: 0.6rem;
+  border-top: 1px dashed var(--graa-kant);
+}
+.effektuer-blok label {
+  font-size: 0.85rem;
+  color: var(--tekst-daempet);
+}
+.effektuer-blok select {
+  font: inherit;
+  padding: 0.25rem 0.4rem;
+  border: 1px solid var(--graa-kant-moerk);
+  border-radius: 2px;
+}

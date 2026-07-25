@@ -22,6 +22,7 @@ function sag(overrides: Partial<Sag> = {}): Sag {
     frist_dato: '2026-08-07',
     ansvarlig_bruger: 'sagsbehandler',
     lukket_dato: null,
+    ansoegning: null,
     ...overrides,
   };
 }

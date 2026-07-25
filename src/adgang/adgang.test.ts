@@ -35,9 +35,14 @@ describe('maaUdfoere', () => {
     }
   });
 
-  it('lader kun borger rette kontaktoplysninger', () => {
+  it('lader borger rette kontakt og ansøge via selvbetjening - men intet andet', () => {
+    // Borgeren må rette kontakt og ansøge (ansøgning opretter kun en sag).
     expect(maaUdfoere(borger01, HANDLINGER.RET_KONTAKT)).toBe(true);
+    expect(maaUdfoere(borger01, HANDLINGER.ANSOEG_SELVBETJENING)).toBe(true);
+    // Men borgeren må ALDRIG oprette ydelser, forny, danne opkrævninger eller
+    // effektuere en ansøgning direkte.
     expect(maaUdfoere(borger01, HANDLINGER.TILFOEJ_LOEBENDE)).toBe(false);
+    expect(maaUdfoere(borger01, HANDLINGER.TILFOEJ_ENGANGS)).toBe(false);
     expect(maaUdfoere(borger01, HANDLINGER.FORNY_YDELSE)).toBe(false);
     expect(maaUdfoere(borger01, HANDLINGER.DAN_OPKRAEVNING)).toBe(false);
     expect(maaUdfoere(borger01, HANDLINGER.SKIFT_OPKRAEVNING_STATUS)).toBe(false);
@@ -46,6 +51,7 @@ describe('maaUdfoere', () => {
     expect(maaUdfoere(borger01, HANDLINGER.SKRIV_JOURNALNOTAT)).toBe(false);
     expect(maaUdfoere(borger01, HANDLINGER.UDLOES_VARSLING)).toBe(false);
     expect(maaUdfoere(borger01, HANDLINGER.OPRET_SAG)).toBe(false);
+    expect(maaUdfoere(borger01, HANDLINGER.EFFEKTUER_ANSOEGNING)).toBe(false);
   });
 });
 

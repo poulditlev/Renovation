@@ -1,11 +1,16 @@
-import type { Afgoerelse, Afgoerelsesresultat, Journalnotat, Sag, SagStatus } from '../sag/index.js';
+import type { Afgoerelse, Afgoerelsesresultat, Ansoegning, Journalnotat, Sag, SagStatus } from '../sag/index.js';
 import {
+  findAnsoegningstype,
   opretJournalnotat,
   opretSag,
   skiftSagStatus,
   traefAfgoerelse,
 } from '../sag/index.js';
+import { findYdelsestype } from '../ydelser/index.js';
 import { parterForEjendom } from './store.js';
+import type { Engangsleverance } from '../ydelser/engangsleverance.js';
+import type { LoebendeYdelse } from '../ydelser/loebendeYdelse.js';
+import { afslutLoebende, findLoebende, tilfoejEngangs, tilfoejLoebende } from './ydelserStore.js';
 
 // In-memory-lager for sager, afgørelser og journalnotater. Journalnotater og
 // afgørelser slettes/ændres aldrig. Mutationerne kalder de rene funktioner i
@@ -15,7 +20,9 @@ const sager: Sag[] = [];
 const afgoerelser: Afgoerelse[] = [];
 const journalnotater: Journalnotat[] = [];
 
-let sagLøbeNr = 122;
+// Starter over de hardkodede seed-sagsnumre (…00098, …00123), så nye sager
+// (fx borgeransøgninger) ikke får et sagsnummer der kolliderer med seed.
+let sagLøbeNr = 123;
 let idLøbeNr = 6000;
 
 function nytSagsnummer(): string {
@@ -111,14 +118,23 @@ export function journalForSag(sagId: string): Journalnotat[] {
 export interface HandlendeBruger {
   rolle: 'SAGSBEHANDLER' | 'BORGER';
   navn: string;
+  /** For borgere: hvilken part de ER (så sagen knyttes til borgerens egen part). */
+  part_id?: string | null;
 }
 
 export interface OpretSagStoreInput {
   ejendom_id: string;
   sagstype_id: string;
+  /** Ansøgningsindhold, hvis sagen kommer fra en borgeransøgning. */
+  ansoegning?: Ansoegning | null;
 }
 export function tilfoejSag(input: OpretSagStoreInput, bruger: HandlendeBruger): Sag {
-  const partId = parterForEjendom(input.ejendom_id).find((p) => p.kobling.rolle === 'BETALER')?.part.id ?? null;
+  // En borgersag knyttes til borgerens egen part; en sagsbehandlersag til
+  // ejendommens betaler.
+  const partId =
+    bruger.rolle === 'BORGER' && bruger.part_id
+      ? bruger.part_id
+      : parterForEjendom(input.ejendom_id).find((p) => p.kobling.rolle === 'BETALER')?.part.id ?? null;
   const sag = opretSag({
     id: nytId('sag'),
     sagsnummer: nytSagsnummer(),
@@ -129,18 +145,40 @@ export function tilfoejSag(input: OpretSagStoreInput, bruger: HandlendeBruger): 
     ansvarlig_bruger: bruger.rolle === 'SAGSBEHANDLER' ? bruger.navn : null,
     // Borger-oprettede sager markeres som selvbetjening; ellers sagsbehandler.
     kanal: bruger.rolle === 'BORGER' ? 'SELVBETJENING' : 'SAGSBEHANDLER',
+    ansoegning: input.ansoegning ?? null,
   });
   sager.push(sag);
   journalnotater.push(
     opretJournalnotat({
       id: nytId('jn'),
       sag_id: sag.id,
-      tekst: `Sag oprettet (${sag.kanal === 'SELVBETJENING' ? 'selvbetjening' : 'sagsbehandler'}).`,
+      // Journalen er sagens sporbarhed: hvem, i hvilken rolle, og hvad der blev
+      // ansøgt om. oprettet_af bærer navnet; rollen står eksplicit i teksten.
+      tekst: sag.ansoegning
+        ? `Ansøgning modtaget via selvbetjening (rolle ${bruger.rolle}, ${bruger.navn}). Ansøgt om: ${beskrivAnsoegning(sag.ansoegning)}.`
+        : `Sag oprettet (${sag.kanal === 'SELVBETJENING' ? 'selvbetjening' : 'sagsbehandler'}).`,
       oprettet: nu(),
       oprettet_af: bruger.navn,
     }),
   );
   return sag;
+}
+
+/** Kort, læsbar beskrivelse af hvad der er ansøgt om (til journal/visning). */
+export function beskrivAnsoegning(a: Ansoegning): string {
+  const type = findAnsoegningstype(a.art);
+  const navn = type?.navn ?? a.art;
+  if (a.art === 'AFMELDING') {
+    const ydelse = a.afmeld_ydelse_id ? findLoebende(a.afmeld_ydelse_id) : undefined;
+    const ynavn = ydelse ? findYdelsestype(ydelse.ydelsestype_id)?.navn ?? ydelse.ydelsestype_id : 'en løbende ydelse';
+    return `${navn} (${ynavn})`;
+  }
+  const ytypeNavn = a.ydelsestype_id ? findYdelsestype(a.ydelsestype_id)?.navn ?? a.ydelsestype_id : null;
+  const dele = [navn];
+  if (ytypeNavn) dele.push(ytypeNavn);
+  if (a.antal && a.antal > 1) dele.push(`${a.antal} stk.`);
+  if (a.oensket_startdato) dele.push(`ønsket dato ${a.oensket_startdato}`);
+  return dele.join(' · ');
 }
 
 export function skiftStatus(sagId: string, til: SagStatus): Sag {
@@ -192,4 +230,102 @@ export function tilfoejJournalnotat(sagId: string, tekst: string): Journalnotat 
   });
   journalnotater.push(notat);
   return notat;
+}
+
+// --- Effektuering af en imødekommet ansøgning --------------------------------
+// Når sagsbehandleren har imødekommet en ansøgning, kan den EFFEKTUERES: den
+// ansøgte ydelse oprettes ved at GENBRUGE den eksisterende ydelses-oprettelse
+// (tilfoejLoebende/tilfoejEngangs/afslutLoebende) - ikke en parallel vej.
+// Sker på sagsbehandlerens eksplicitte handling; en borger må aldrig selv
+// oprette ydelser.
+
+const effektuerede = new Set<string>();
+
+/** Standard bindingsperiode ved effektuering, hvis sagsbehandleren ikke vælger. */
+const STANDARD_BINDING = '12_MDR';
+
+export function erEffektueret(sagId: string): boolean {
+  return effektuerede.has(sagId);
+}
+
+export interface EffektueringResultat {
+  effekt: 'LOEBENDE' | 'ENGANGS' | 'AFMELD';
+  loebende?: LoebendeYdelse;
+  engangs?: Engangsleverance;
+  afmeldt?: LoebendeYdelse;
+}
+
+/**
+ * Effektuerer en imødekommet ansøgning. Kræver at sagen er AFGJORT med en
+ * afgørelse med resultat IMOEDEKOMMET (og dermed med hjemmel, jf. traefAfgoerelse).
+ * Opretter den ansøgte ydelse via de eksisterende funktioner. Kan kun ske én gang.
+ */
+export function effektuerAnsoegning(
+  sagId: string,
+  bruger: HandlendeBruger,
+  bindingsperiode_kode: string = STANDARD_BINDING,
+): EffektueringResultat {
+  const sag = findSag(sagId);
+  if (!sag) throw new Error(`Ukendt sag: ${sagId}`);
+  if (!sag.ansoegning) throw new Error('Sagen har ingen ansøgning at effektuere.');
+  if (sag.status !== 'AFGJORT') throw new Error('Kun en afgjort sag kan effektueres.');
+  const afg = afgoerelseForSag(sagId);
+  if (!afg) throw new Error('Sagen har ingen afgørelse.');
+  if (afg.resultat !== 'IMOEDEKOMMET') {
+    throw new Error('Kun en imødekommet ansøgning kan effektueres.');
+  }
+  if (erEffektueret(sagId)) throw new Error('Ansøgningen er allerede effektueret.');
+
+  const a = sag.ansoegning;
+  const type = findAnsoegningstype(a.art);
+  if (!type) throw new Error(`Ukendt ansøgningsart: ${a.art}`);
+  const dato = a.oensket_startdato ?? idag();
+
+  let resultat: EffektueringResultat;
+  if (type.effekt === 'LOEBENDE') {
+    if (!a.ydelsestype_id || !a.materieltype_id) {
+      throw new Error('Ansøgningen mangler ydelsestype/størrelse.');
+    }
+    const loebende = tilfoejLoebende({
+      ejendom_id: sag.ejendom_id,
+      ydelsestype_id: a.ydelsestype_id,
+      materieltype_id: a.materieltype_id,
+      bindingsperiode_kode,
+      startdato: dato,
+      hjemmel: afg.hjemmel, // afgørelsens hjemmel bæres videre til ydelsen
+      oprettet_af: bruger.navn,
+    });
+    resultat = { effekt: 'LOEBENDE', loebende };
+  } else if (type.effekt === 'ENGANGS') {
+    const ydelsestypeId = a.ydelsestype_id ?? type.fast_ydelsestype_id;
+    if (!ydelsestypeId) throw new Error('Ansøgningen mangler ydelsestype.');
+    const ytype = findYdelsestype(ydelsestypeId);
+    const engangs = tilfoejEngangs({
+      ejendom_id: sag.ejendom_id,
+      ydelsestype_id: ydelsestypeId,
+      leveringsdato: dato,
+      antal: a.antal ?? 1,
+      enhedspris_oere: ytype?.standard_enhedspris_oere ?? 0,
+      hjemmel: afg.hjemmel,
+      oprettet_af: bruger.navn,
+    });
+    resultat = { effekt: 'ENGANGS', engangs };
+  } else {
+    // AFMELD: afslut den valgte løbende ydelse.
+    if (!a.afmeld_ydelse_id) throw new Error('Ansøgningen mangler hvilken ydelse der skal afmeldes.');
+    const afmeldt = afslutLoebende(a.afmeld_ydelse_id, dato);
+    resultat = { effekt: 'AFMELD', afmeldt };
+  }
+
+  effektuerede.add(sagId);
+  journalnotater.push(
+    opretJournalnotat({
+      id: nytId('jn'),
+      sag_id: sagId,
+      tekst: `Afgørelse effektueret: ${beskrivAnsoegning(a)}.`,
+      oprettet: nu(),
+      oprettet_af: bruger.navn,
+    }),
+  );
+  return resultat;
 }

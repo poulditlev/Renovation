@@ -98,6 +98,23 @@ export function tilfoejEngangs(input: TilfoejEngangsInput): Engangsleverance {
 }
 
 /**
+ * Afslutter (afmelder) en løbende ydelse ved at sætte `gyldig_til`. Rækken
+ * SLETTES ikke - historikken bevares. Bruges når en sagsbehandler effektuerer
+ * en imødekommet afmeldingsansøgning. `dato` skal være på eller efter startdatoen.
+ */
+export function afslutLoebende(id: string, dato: string): LoebendeYdelse {
+  const idx = loebendeYdelser.findIndex((y) => y.id === id);
+  if (idx < 0) throw new Error(`Ukendt løbende ydelse: ${id}`);
+  const ydelse = loebendeYdelser[idx] as LoebendeYdelse;
+  if (dato < ydelse.gyldig_fra) {
+    throw new Error('Afmeldingsdatoen kan ikke ligge før ydelsens startdato.');
+  }
+  const opdateret: LoebendeYdelse = { ...ydelse, gyldig_til: dato };
+  loebendeYdelser[idx] = opdateret;
+  return opdateret;
+}
+
+/**
  * Fornyer en løbende ydelse. Den gamle række bevares uændret; en ny række
  * lægges til i forlængelse. Returnerer den nye ydelse.
  */
