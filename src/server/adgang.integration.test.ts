@@ -167,6 +167,105 @@ describe('borger-oversigt: GET /api/mine filtreres på serveren', () => {
   });
 });
 
+describe('selvbetjening: borgerens ansøgning skaber en sag - ikke en ydelse', () => {
+  async function antalLoebende(ejendomId: string): Promise<number> {
+    const data = await getJson(`/api/ejendomme/${ejendomId}/ydelser`, SAGSBEHANDLER);
+    return data.loebende.length;
+  }
+
+  it('en ansøgning opretter en sag med status MODTAGET og kanal SELVBETJENING', async () => {
+    const r = await post('/api/ejendomme/ejendom-01/ansoegninger', BORGER_01, {
+      art: 'EKSTRA_BEHOLDER',
+      ydelsestype_id: 'ytype-beholder-240-2',
+      oensket_startdato: '2026-09-01',
+    });
+    expect(r.status).toBe(201);
+    const sag: any = await r.json();
+    expect(sag.status).toBe('MODTAGET');
+    expect(sag.kanal).toBe('SELVBETJENING');
+    expect(sag.part_id).toBe('part-01');
+    expect(sag.ansoegning.art).toBe('EKSTRA_BEHOLDER');
+    expect(sag.ansoegning.materieltype_id).toBe('mtype-240-2'); // udledt på serveren
+  });
+
+  it('en ansøgning opretter IKKE en ydelse direkte', async () => {
+    const foer = await antalLoebende('ejendom-01');
+    const r = await post('/api/ejendomme/ejendom-01/ansoegninger', BORGER_01, {
+      art: 'EKSTRA_BEHOLDER',
+      ydelsestype_id: 'ytype-beholder-240-2',
+      oensket_startdato: '2026-09-01',
+    });
+    expect(r.status).toBe(201);
+    const efter = await antalLoebende('ejendom-01');
+    expect(efter).toBe(foer); // ingen ny ydelse - kun en sag
+  });
+
+  it('en borger kan kun ansøge på sin egen ejendom (403 på en andens)', async () => {
+    const r = await post('/api/ejendomme/ejendom-02/ansoegninger', BORGER_01, {
+      art: 'EKSTRA_BEHOLDER',
+      ydelsestype_id: 'ytype-beholder-240-2',
+    });
+    expect(r.status).toBe(403);
+  });
+
+  it('en borger må ikke effektuere (kun sagsbehandler)', async () => {
+    const opret = await post('/api/ejendomme/ejendom-01/ansoegninger', BORGER_01, {
+      art: 'EKSTRA_BEHOLDER',
+      ydelsestype_id: 'ytype-beholder-240-2',
+    });
+    const sag: any = await opret.json();
+    const r = await post(`/api/sager/${sag.id}/effektuer`, BORGER_01);
+    expect(r.status).toBe(403);
+  });
+
+  it('sagsbehandleren kan effektuere en imødekommet ansøgning - ydelsen oprettes med korrekt periode', async () => {
+    // Borger ansøger.
+    const opret = await post('/api/ejendomme/ejendom-01/ansoegninger', BORGER_01, {
+      art: 'EKSTRA_BEHOLDER',
+      ydelsestype_id: 'ytype-beholder-240-2',
+      oensket_startdato: '2026-09-01',
+    });
+    const sag: any = await opret.json();
+    const foer = await antalLoebende('ejendom-01');
+
+    // Sagsbehandler imødekommer (hjemmel obligatorisk).
+    const afg = await post(`/api/sager/${sag.id}/afgoerelse`, SAGSBEHANDLER, {
+      resultat: 'IMOEDEKOMMET',
+      begrundelse: 'Bevilget efter regulativet.',
+      hjemmel: 'Regulativ for husholdningsaffald § 9',
+    });
+    expect(afg.status).toBe(201);
+
+    // Effektuering opretter den ansøgte løbende ydelse.
+    const eff = await post(`/api/sager/${sag.id}/effektuer`, SAGSBEHANDLER, { bindingsperiode_kode: '12_MDR' });
+    expect(eff.status).toBe(201);
+
+    const data = await getJson('/api/ejendomme/ejendom-01/ydelser', SAGSBEHANDLER);
+    expect(data.loebende.length).toBe(foer + 1);
+    const ny = data.loebende.find((y: { gyldig_fra: string }) => y.gyldig_fra === '2026-09-01');
+    expect(ny).toBeTruthy();
+    expect(ny.gyldig_til).toBe('2027-09-01'); // start + 12 mdr.
+
+    // Kan ikke effektueres to gange.
+    const eff2 = await post(`/api/sager/${sag.id}/effektuer`, SAGSBEHANDLER, {});
+    expect(eff2.status).toBe(400);
+  });
+
+  it('en imødekommet ansøgning uden hjemmel afvises', async () => {
+    const opret = await post('/api/ejendomme/ejendom-01/ansoegninger', BORGER_01, {
+      art: 'EKSTRA_BEHOLDER',
+      ydelsestype_id: 'ytype-beholder-240-2',
+    });
+    const sag: any = await opret.json();
+    const afg = await post(`/api/sager/${sag.id}/afgoerelse`, SAGSBEHANDLER, {
+      resultat: 'IMOEDEKOMMET',
+      begrundelse: 'Mangler hjemmel',
+      hjemmel: '',
+    });
+    expect(afg.status).toBe(400);
+  });
+});
+
 describe('sporbarhed: kanal på sag', () => {
   it('en sag oprettet af en borger får kanal SELVBETJENING', () => {
     const sag = tilfoejSag(

@@ -42,6 +42,20 @@ export const sagstyper: Sagstype[] = [
     kle_nummer: '07.18.10',
     sagsbehandlingsfrist_dage: 28,
   },
+  {
+    id: 'stype-beholder-stoerrelse',
+    kode: 'ANSOEG_BEHOLDER_STOERRELSE',
+    navn: 'Ansøgning om anden beholderstørrelse',
+    kle_nummer: '07.18.07',
+    sagsbehandlingsfrist_dage: 28,
+  },
+  {
+    id: 'stype-farligt-saek',
+    kode: 'ANSOEG_FARLIGT_SAEK',
+    navn: 'Ansøgning om sække til farligt affald',
+    kle_nummer: '07.18.08',
+    sagsbehandlingsfrist_dage: 14,
+  },
 ];
 
 export function findSagstype(id: string): Sagstype | undefined {

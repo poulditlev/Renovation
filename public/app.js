@@ -904,10 +904,13 @@ function renderSagsliste() {
     const b = document.createElement("button");
     b.type = "button";
     if (s.sag.id === valgtSagId) b.setAttribute("aria-current", "true");
+    const kanalMaerke =
+      s.sag.kanal === "SELVBETJENING" ? '<span class="kanal-maerke">Selvbetjening</span>' : "";
     b.innerHTML =
-      `<span class="nr">${escapeHtml(s.sag.sagsnummer)}</span>` +
+      `<span class="nr">${escapeHtml(s.sag.sagsnummer)} ${kanalMaerke}</span>` +
       `<span class="undertekst">${escapeHtml(s.sagstype_navn)} · ${(SAG_STATUS[s.sag.status] || {}).tekst || s.sag.status}</span>` +
-      `<span class="undertekst">Kanal: ${escapeHtml(kanalTekst(s.sag.kanal))}</span>`;
+      `<span class="undertekst">Kanal: ${escapeHtml(kanalTekst(s.sag.kanal))}</span>` +
+      (s.ansoegning_tekst ? `<span class="undertekst">Ansøgt om: ${escapeHtml(s.ansoegning_tekst)}</span>` : "");
     b.addEventListener("click", () => vaelgSag(s.sag.id));
     li.append(b);
     ul.append(li);
@@ -941,6 +944,14 @@ function renderSagDetalje(s) {
     (sag.lukket_dato ? `<dt>Lukket</dt><dd>${escapeHtml(sag.lukket_dato)}</dd>` : "") +
     `</dl>`;
 
+  // Selvbetjeningsansøgning: vis tydeligt hvad borgeren har ansøgt om.
+  if (s.ansoegning_tekst) {
+    html +=
+      `<p class="ansoeg-info"><strong>Ansøgt om:</strong> ${escapeHtml(s.ansoegning_tekst)}` +
+      (s.effektueret ? ' <span class="status-pil status-groen">Effektueret</span>' : "") +
+      `</p>`;
+  }
+
   // Statushandlinger (næste skridt) + træf afgørelse - kun for sagsbehandlere.
   const naeste = {
     MODTAGET: ["UNDER_BEHANDLING", "Start behandling"],
@@ -953,6 +964,23 @@ function renderSagDetalje(s) {
     if (naeste) html += `<button type="button" class="knap knap--sekundaer" data-sagstatus="${naeste[0]}">${naeste[1]}</button>`;
     if (sag.status !== "AFGJORT" && sag.status !== "LUKKET") html += `<button type="button" class="knap" data-afgoerelse="1">Træf afgørelse</button>`;
     html += `</div>`;
+
+    // Effektuér en imødekommet ansøgning: opret den ansøgte ydelse. For løbende
+    // ydelser vælges bindingsperioden her; for andre arter er den irrelevant.
+    if (s.kan_effektueres) {
+      const art = sag.ansoegning ? sag.ansoegning.art : null;
+      const erLoebende = art === "EKSTRA_BEHOLDER" || art === "ANDEN_STOERRELSE";
+      html += `<div class="opk-handling effektuer-blok">`;
+      if (erLoebende) {
+        const opts = (katalog.bindingsperioder || [])
+          .map((b) => `<option value="${escapeHtml(b.kode)}"${b.kode === "12_MDR" ? " selected" : ""}>${escapeHtml(b.navn)}</option>`)
+          .join("");
+        html +=
+          `<label for="effektuer-binding">Bindingsperiode</label>` +
+          `<select id="effektuer-binding">${opts}</select>`;
+      }
+      html += `<button type="button" class="knap" data-effektuer="1">Effektuér ansøgning</button></div>`;
+    }
   }
 
   // Afgørelse
@@ -991,6 +1019,24 @@ function renderSagDetalje(s) {
   const afgBtn = el("sag-detalje").querySelector("[data-afgoerelse]");
   if (afgBtn) afgBtn.addEventListener("click", () => aabnAfgoerelse(sag.id));
   el("tilfoej-notat")?.addEventListener("click", () => tilfoejNotat(sag.id));
+  const effBtn = el("sag-detalje").querySelector("[data-effektuer]");
+  if (effBtn) effBtn.addEventListener("click", () => effektuerSag(sag.id));
+}
+
+// Effektuerer en imødekommet ansøgning: opretter den ansøgte ydelse på serveren
+// (genbrug af den eksisterende ydelses-oprettelse) og genindlæser sag + ydelser.
+async function effektuerSag(sagId) {
+  const bindingSel = el("effektuer-binding");
+  const binding = bindingSel ? bindingSel.value : "";
+  try {
+    await postJson(`/api/sager/${encodeURIComponent(sagId)}/effektuer`, binding ? { bindingsperiode_kode: binding } : {});
+    if (valgtEjendomId) {
+      indlaesSager(valgtEjendomId);
+      indlaesYdelser(valgtEjendomId);
+    }
+  } catch (e) {
+    alert(`Kunne ikke effektuere ansøgningen: ${e.message}`);
+  }
 }
 
 async function skiftSagStatusUI(sagId, status) {
@@ -1564,6 +1610,7 @@ function renderBorgerSager(liste) {
     const resultat = s.afgoerelse_resultat ? ` · Resultat: ${afgResultatBorger(s.afgoerelse_resultat)}` : "";
     li.innerHTML =
       `<span class="borger-liste__navn">${escapeHtml(s.sagstype_navn)}</span>` +
+      (s.ansoegning_tekst ? `<span class="borger-liste__under">Ansøgt om: ${escapeHtml(s.ansoegning_tekst)}</span>` : "") +
       `<span class="borger-liste__under">Sagsnummer ${escapeHtml(s.sagsnummer)}</span>` +
       `<span class="borger-liste__under">Status: ${escapeHtml(sagStatusBorger(s.status))}${escapeHtml(resultat)}</span>` +
       `<span class="borger-liste__under">${escapeHtml(kanalBorger(s.kanal))}</span>`;
@@ -1601,8 +1648,158 @@ function renderBorgerKontakt(ejendom) {
   c.append(blok, hjaelp, knap);
 }
 
+// --- Borgerens ansøgning (opretter KUN en sag) -------------------------------
+let ansoegningskatalog = { arter: [], stoerrelser: [] };
+async function indlaesAnsoegningskatalog() {
+  try {
+    ansoegningskatalog = await hentJson("/api/ansoegningskatalog");
+  } catch {
+    ansoegningskatalog = { arter: [], stoerrelser: [] };
+  }
+}
+
+const ansoegDialog = el("ansoeg-dialog");
+let ansoegForrigeFokus = null;
+
+function aktuelBorgerEjendom() {
+  return mineData.ejendomme.find((x) => x.id === borgerValgtEjendomId) || null;
+}
+
+function valgtAnsoegType() {
+  return ansoegningskatalog.arter.find((a) => a.art === el("an-art").value) || null;
+}
+
+function fyldAnsoegArter() {
+  const sel = el("an-art");
+  sel.innerHTML = "";
+  for (const a of ansoegningskatalog.arter) {
+    const opt = document.createElement("option");
+    opt.value = a.art;
+    opt.textContent = a.navn;
+    sel.append(opt);
+  }
+}
+
+function opdaterAnsoegFelter() {
+  const t = valgtAnsoegType();
+  el("an-art-beskrivelse").textContent = t ? t.beskrivelse : "";
+  const visStoerrelse = !!(t && t.kraever_stoerrelse);
+  const visAntal = !!(t && t.fast_ydelsestype_id && !t.kraever_stoerrelse && !t.kraever_afmeld_valg);
+  const visAfmeld = !!(t && t.kraever_afmeld_valg);
+  el("an-stoerrelse-felt").hidden = !visStoerrelse;
+  el("an-antal-felt").hidden = !visAntal;
+  el("an-afmeld-felt").hidden = !visAfmeld;
+  el("an-dato-label").textContent = visAfmeld
+    ? "Ønsket ophørsdato"
+    : visAntal
+      ? "Ønsket leveringsdato"
+      : "Ønsket startdato";
+
+  if (visStoerrelse) {
+    const sel = el("an-stoerrelse");
+    sel.innerHTML = "";
+    for (const s of ansoegningskatalog.stoerrelser) {
+      const opt = document.createElement("option");
+      opt.value = s.id;
+      opt.textContent = s.navn;
+      sel.append(opt);
+    }
+  }
+  if (visAfmeld) {
+    const sel = el("an-afmeld");
+    sel.innerHTML = "";
+    const e = aktuelBorgerEjendom();
+    const loeb = (e && e.loebende) || [];
+    if (loeb.length === 0) {
+      const opt = document.createElement("option");
+      opt.value = "";
+      opt.textContent = "Du har ingen faste ordninger at afmelde";
+      sel.append(opt);
+    } else {
+      for (const y of loeb) {
+        const opt = document.createElement("option");
+        opt.value = y.id;
+        opt.textContent = y.ydelse_navn;
+        sel.append(opt);
+      }
+    }
+  }
+}
+
+function aabnAnsoegDialog() {
+  if (!borgerValgtEjendomId) return;
+  ansoegForrigeFokus = document.activeElement;
+  el("ansoeg-form").reset();
+  fyldAnsoegArter();
+  opdaterAnsoegFelter();
+  el("ansoeg-dialog-fejl").hidden = true;
+  saetFejl("an-stoerrelse", "an-stoerrelse-fejl", "");
+  saetFejl("an-afmeld", "an-afmeld-fejl", "");
+  ansoegDialog.showModal();
+  el("an-art").focus();
+}
+
+el("borger-ansoeg-knap")?.addEventListener("click", aabnAnsoegDialog);
+el("an-art").addEventListener("change", opdaterAnsoegFelter);
+el("ansoeg-annuller").addEventListener("click", () => ansoegDialog.close());
+// Tastatur/fokus: returnér fokus til knappen når dialogen lukkes.
+ansoegDialog.addEventListener("close", () => {
+  if (ansoegForrigeFokus && typeof ansoegForrigeFokus.focus === "function") ansoegForrigeFokus.focus();
+});
+
+el("ansoeg-form").addEventListener("submit", async (ev) => {
+  ev.preventDefault();
+  el("ansoeg-dialog-fejl").hidden = true;
+  saetFejl("an-stoerrelse", "an-stoerrelse-fejl", "");
+  saetFejl("an-afmeld", "an-afmeld-fejl", "");
+  const t = valgtAnsoegType();
+  if (!t) return;
+  const body = {
+    art: t.art,
+    oensket_startdato: el("an-dato").value || "",
+    note: el("an-note").value || "",
+  };
+  if (t.kraever_stoerrelse) {
+    const v = el("an-stoerrelse").value;
+    if (!v) {
+      saetFejl("an-stoerrelse", "an-stoerrelse-fejl", "Vælg en beholderstørrelse.");
+      el("an-stoerrelse").focus();
+      return;
+    }
+    body.ydelsestype_id = v;
+  }
+  if (t.fast_ydelsestype_id && !t.kraever_stoerrelse && !t.kraever_afmeld_valg) {
+    body.antal = Number(el("an-antal").value) || 1;
+  }
+  if (t.kraever_afmeld_valg) {
+    const v = el("an-afmeld").value;
+    if (!v) {
+      saetFejl("an-afmeld", "an-afmeld-fejl", "Vælg en ordning at afmelde.");
+      el("an-afmeld").focus();
+      return;
+    }
+    body.afmeld_ydelse_id = v;
+  }
+  try {
+    await postJson(`/api/ejendomme/${encodeURIComponent(borgerValgtEjendomId)}/ansoegninger`, body);
+    ansoegDialog.close();
+    await indlaesMine();
+    const bek = el("borger-ansoeg-bekraeft");
+    bek.textContent = 'Din ansøgning er sendt. Du kan følge den under "Mine sager".';
+    bek.hidden = false;
+    setTimeout(() => {
+      bek.hidden = true;
+    }, 6000);
+  } catch (e) {
+    const f = el("ansoeg-dialog-fejl");
+    f.textContent = e.message;
+    f.hidden = false;
+  }
+});
+
 // --- Opstart -----------------------------------------------------------------
 indlaesBrugere();
+indlaesAnsoegningskatalog();
 indlaesRegisterEjendomme();
 indlaesKatalog();
 indlaesSagskatalog();

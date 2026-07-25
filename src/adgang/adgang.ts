@@ -25,6 +25,9 @@ export interface Bruger {
  */
 export const HANDLINGER = {
   RET_KONTAKT: 'RET_KONTAKT',
+  // Borgerens selvbetjeningsansøgning. Opretter KUN en sag (kanal SELVBETJENING);
+  // den effektuerer aldrig en ydelse - det gør sagsbehandleren bagefter.
+  ANSOEG_SELVBETJENING: 'ANSOEG_SELVBETJENING',
   TILFOEJ_LOEBENDE: 'TILFOEJ_LOEBENDE',
   TILFOEJ_ENGANGS: 'TILFOEJ_ENGANGS',
   FORNY_YDELSE: 'FORNY_YDELSE',
@@ -35,17 +38,22 @@ export const HANDLINGER = {
   SKIFT_SAG_STATUS: 'SKIFT_SAG_STATUS',
   TRAEF_AFGOERELSE: 'TRAEF_AFGOERELSE',
   SKRIV_JOURNALNOTAT: 'SKRIV_JOURNALNOTAT',
+  // Effektuering af en imødekommet ansøgning (opretter den ansøgte ydelse).
+  // KUN sagsbehandler - en borger må aldrig oprette ydelser direkte.
+  EFFEKTUER_ANSOEGNING: 'EFFEKTUER_ANSOEGNING',
 } as const;
 
 export type Handling = (typeof HANDLINGER)[keyof typeof HANDLINGER];
 
 const ALLE_HANDLINGER: Handling[] = Object.values(HANDLINGER);
 
-// Rettighedstabel pr. rolle. SAGSBEHANDLER må alt; BORGER må kun rette
-// kontaktoplysninger (og se sine egne ejendomme, jf. maaSeEjendom).
+// Rettighedstabel pr. rolle. SAGSBEHANDLER må alt; BORGER må rette
+// kontaktoplysninger og ANSØGE via selvbetjening (og se sine egne ejendomme,
+// jf. maaSeEjendom). En ansøgning opretter kun en sag - borgeren må stadig
+// ALDRIG oprette ydelser, forny eller danne opkrævninger direkte.
 const RETTIGHEDER: Record<Rolle, ReadonlySet<Handling>> = {
   SAGSBEHANDLER: new Set(ALLE_HANDLINGER),
-  BORGER: new Set<Handling>([HANDLINGER.RET_KONTAKT]),
+  BORGER: new Set<Handling>([HANDLINGER.RET_KONTAKT, HANDLINGER.ANSOEG_SELVBETJENING]),
 };
 
 /** Må brugeren udføre en given handling (uafhængigt af hvilket objekt)? */

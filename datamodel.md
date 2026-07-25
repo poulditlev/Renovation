@@ -374,6 +374,7 @@ Den faktiske hændelse.
 | `frist_dato` | date | Beregnet ud fra sagstypen |
 | `ansvarlig_bruger` | text | Sagsbehandlerens navn. `null` når sagen er oprettet af en borger via selvbetjening |
 | `kanal` | text | `SELVBETJENING` eller `SAGSBEHANDLER` — hvordan sagen er kommet ind. Se afsnit 6 |
+| `ansoegning` | jsonb | Ansøgningens indhold, hvis sagen kommer fra en borgeransøgning. `null` ellers. Se nedenfor |
 | `lukket_dato` | date | |
 
 > **Kanal (sporbarhed).** `kanal` fortæller om sagen er oprettet af borgeren selv
@@ -381,6 +382,30 @@ Den faktiske hændelse.
 > automatisk ud fra den handlende brugers rolle og kan bruges til at måle hvor
 > stor en andel af sagerne der klares uden en sagsbehandler. Borger-oprettede
 > sager får desuden ingen ansvarlig sagsbehandler før en sagsbehandler tager dem.
+
+> **Ansøgningens indhold på sagen.** Når en borger ansøger via selvbetjening,
+> opretter systemet en **sag** (status `MODTAGET`, kanal `SELVBETJENING`) — det
+> ændrer *aldrig* ydelser eller materiel direkte. Hvad borgeren bad om, gemmes i
+> `ansoegning` som en del af sagen, så sagsbehandleren kan se det:
+>
+> | Felt i `ansoegning` | Betydning |
+> |---|---|
+> | `art` | `EKSTRA_BEHOLDER`, `ANDEN_STOERRELSE`, `FARLIGT_SAEK` eller `AFMELDING` |
+> | `ydelsestype_id` | Den ansøgte ydelsestype (beholderstørrelse / farligt sæk) |
+> | `materieltype_id` | Udledt af ydelsestypen (for periodiske beholderydelser) |
+> | `antal` | Antal for engangsydelser (fx sæt sække) |
+> | `oensket_startdato` | Ønsket start-/leverings-/ophørsdato |
+> | `afmeld_ydelse_id` | Ved `AFMELDING`: hvilken løbende ydelse der ønskes afmeldt |
+> | `note` | Fri bemærkning fra borgeren |
+>
+> **Effektuering.** Det er først sagsbehandlerens **imødekommende afgørelse**
+> (med obligatorisk hjemmel) der kan *effektueres*: en eksplicit handling, der
+> opretter den ansøgte ydelse ved at genbruge den almindelige ydelses-oprettelse
+> (samme validering og periodeberegning). Afgørelsens hjemmel bæres videre til
+> ydelsen. En ansøgning kan kun effektueres én gang, og kun af en sagsbehandler —
+> en borger må aldrig oprette ydelser direkte. Hele forløbet (ansøgning →
+> afgørelse → effektuering) fremgår af sagens append-only journal, inkl. hvem der
+> handlede og i hvilken rolle.
 
 ### `afgoerelse`
 
@@ -462,11 +487,14 @@ skrive journalnotater og udløse varslinger.
 - **se** data på de ejendomme vedkommende er registreret som part på (via
   `ejendom_part`), og kun i den periode tilknytningen er gyldig
   (`gyldig_fra` inklusiv, `gyldig_til` eksklusiv);
-- **rette kontaktoplysninger** (`email`, `telefon`) på sin **egen** part.
+- **rette kontaktoplysninger** (`email`, `telefon`) på sin **egen** part;
+- **ansøge** via selvbetjening på sin **egen** ejendom (`ANSOEG_SELVBETJENING`).
+  En ansøgning opretter **kun en sag** — den opretter aldrig en ydelse.
 
 Alt andet er forbudt for borgere: tilføje ydelser, forny, danne opkrævninger,
-ændre opkrævnings- eller sagsstatus, træffe afgørelser, skrive journalnotater og
-udløse varslinger.
+ændre opkrævnings- eller sagsstatus, træffe afgørelser, skrive journalnotater,
+udløse varslinger og **effektuere** en ansøgning (`EFFEKTUER_ANSOEGNING` —
+oprettelsen af den ansøgte ydelse er forbeholdt sagsbehandleren).
 
 Reglerne er udtrykt som to rene funktioner og et sæt navngivne handlinger:
 

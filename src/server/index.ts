@@ -38,10 +38,14 @@ import {
   skiftOpkraevningStatus,
 } from '../data/opkraevningStore.js';
 import type { OpkraevningStatus } from '../opkraevning/index.js';
-import { findSagstype, sagstyper } from '../sag/index.js';
-import type { Afgoerelsesresultat, SagStatus } from '../sag/index.js';
+import { ansoegningstyper, findAnsoegningstype, findSagstype, sagstyper } from '../sag/index.js';
+import type { Afgoerelsesresultat, AnsoegningsArt, Ansoegning, SagStatus } from '../sag/index.js';
+import { findYdelsestype } from '../ydelser/index.js';
 import {
   afgoerelseForSag,
+  beskrivAnsoegning,
+  effektuerAnsoegning,
+  erEffektueret,
   journalForSag,
   sagerForEjendom,
   skiftStatus as skiftSagStatusStore,
@@ -365,12 +369,19 @@ async function haandterOpkraevningStatus(req: IncomingMessage, res: ServerRespon
 function byggSagerVisning(ejendomId: string): unknown {
   return sagerForEjendom(ejendomId).map((sag) => {
     const type = findSagstype(sag.sagstype_id);
+    const afg = afgoerelseForSag(sag.id) ?? null;
+    // En imødekommet ansøgning kan effektueres, indtil det er sket.
+    const kan_effektueres =
+      sag.ansoegning !== null && sag.status === 'AFGJORT' && afg?.resultat === 'IMOEDEKOMMET' && !erEffektueret(sag.id);
     return {
       sag,
       sagstype_navn: type?.navn ?? sag.sagstype_id,
       kle_nummer: type?.kle_nummer ?? null,
-      afgoerelse: afgoerelseForSag(sag.id) ?? null,
+      afgoerelse: afg,
       journal: journalForSag(sag.id),
+      ansoegning_tekst: sag.ansoegning ? beskrivAnsoegning(sag.ansoegning) : null,
+      effektueret: erEffektueret(sag.id),
+      kan_effektueres,
     };
   });
 }
@@ -407,6 +418,109 @@ async function haandterOpretSag(
       { rolle: bruger.rolle, navn: bruger.navn },
     );
     sendJson(res, 201, sag);
+  } catch (e) {
+    sendJson(res, 400, { fejl: (e as Error).message });
+  }
+}
+
+/** GET /api/ansoegningskatalog - hvad en borger kan ansøge om + valgbare størrelser. */
+function haandterAnsoegningskatalog(res: ServerResponse): void {
+  // Kun periodiske ydelsestyper (beholderstørrelser) er valgbare størrelser.
+  const stoerrelser = ydelsestyper
+    .filter((y) => y.afregningsform === 'PERIODISK')
+    .map((y) => ({ id: y.id, navn: y.navn, materieltype_id: y.materieltype_id }));
+  sendJson(res, 200, { arter: ansoegningstyper, stoerrelser });
+}
+
+/**
+ * POST /api/ejendomme/:id/ansoegninger - borgerens selvbetjeningsansøgning.
+ * Opretter KUN en sag (kanal SELVBETJENING, status MODTAGET) med ansøgningens
+ * indhold. Ændrer ALDRIG ydelser/materiel. Serveren validerer arten og udleder
+ * selv sagstype og materieltype - frontend kan ikke smugle andet igennem.
+ */
+async function haandterOpretAnsoegning(
+  req: IncomingMessage,
+  res: ServerResponse,
+  ejendomId: string,
+  bruger: Bruger,
+): Promise<void> {
+  if (!findEjendom(ejendomId)) {
+    sendJson(res, 404, { fejl: 'Ejendommen findes ikke i registret.' });
+    return;
+  }
+  try {
+    const krop = await laesJson(req);
+    const type = findAnsoegningstype(somStreng(krop['art']));
+    if (!type) throw new Error('Ukendt ansøgningsart.');
+
+    // Byg ansøgningsindholdet ud fra arten. Serveren bestemmer sagstype og
+    // udleder materieltype; borgeren kan ikke vælge frit.
+    const oensketStart = somStreng(krop['oensket_startdato']) || null;
+    const note = somStreng(krop['note']) || null;
+    let ydelsestypeId: string | null = null;
+    let materieltypeId: string | null = null;
+    let antal: number | null = null;
+    let afmeldYdelseId: string | null = null;
+
+    if (type.kraever_stoerrelse) {
+      const ytype = findYdelsestype(somStreng(krop['ydelsestype_id']));
+      if (!ytype || ytype.afregningsform !== 'PERIODISK') {
+        throw new Error('Vælg en gyldig beholderstørrelse.');
+      }
+      ydelsestypeId = ytype.id;
+      materieltypeId = ytype.materieltype_id;
+    } else if (type.fast_ydelsestype_id) {
+      ydelsestypeId = type.fast_ydelsestype_id;
+      const raaAntal = Number(krop['antal'] ?? 1);
+      antal = Number.isInteger(raaAntal) && raaAntal >= 1 ? raaAntal : 1;
+    }
+    if (type.kraever_afmeld_valg) {
+      const valgt = somStreng(krop['afmeld_ydelse_id']);
+      // Må kun afmelde en løbende ydelse der findes på borgerens egen ejendom.
+      const findes = loebendeForEjendom(ejendomId).some((y) => y.id === valgt);
+      if (!findes) throw new Error('Vælg en af dine egne løbende ydelser at afmelde.');
+      afmeldYdelseId = valgt;
+    }
+
+    const ansoegning: Ansoegning = {
+      art: type.art as AnsoegningsArt,
+      ydelsestype_id: ydelsestypeId,
+      materieltype_id: materieltypeId,
+      antal,
+      oensket_startdato: oensketStart,
+      afmeld_ydelse_id: afmeldYdelseId,
+      note,
+    };
+
+    const sag = tilfoejSag(
+      { ejendom_id: ejendomId, sagstype_id: type.sagstype_id, ansoegning },
+      { rolle: bruger.rolle, navn: bruger.navn, part_id: bruger.part_id },
+    );
+    sendJson(res, 201, sag);
+  } catch (e) {
+    sendJson(res, 400, { fejl: (e as Error).message });
+  }
+}
+
+/**
+ * POST /api/sager/:id/effektuer - sagsbehandleren effektuerer en imødekommet
+ * ansøgning: opretter den ansøgte ydelse via den eksisterende ydelses-oprettelse.
+ */
+async function haandterEffektuer(
+  req: IncomingMessage,
+  res: ServerResponse,
+  sagId: string,
+  bruger: Bruger,
+): Promise<void> {
+  try {
+    const krop = await laesJson(req);
+    const binding = somStreng(krop['bindingsperiode_kode']);
+    const resultat = effektuerAnsoegning(
+      sagId,
+      { rolle: bruger.rolle, navn: bruger.navn },
+      binding.length > 0 ? binding : undefined,
+    );
+    sendJson(res, 201, resultat);
   } catch (e) {
     sendJson(res, 400, { fejl: (e as Error).message });
   }
@@ -577,6 +691,8 @@ function haandterMine(res: ServerResponse, bruger: Bruger): void {
             modtaget_dato: s.modtaget_dato,
             frist_dato: s.frist_dato,
             afgoerelse_resultat: afg?.resultat ?? null,
+            // Hvad borgeren ansøgte om (hvis sagen er en ansøgning).
+            ansoegning_tekst: s.ansoegning ? beskrivAnsoegning(s.ansoegning) : null,
           };
         });
 
@@ -733,10 +849,25 @@ async function haandter(req: IncomingMessage, res: ServerResponse): Promise<void
       return haandterOpkraevningStatus(req, res, decodeURIComponent(opkStatusMatch[1] as string));
     }
 
+    // Borgerens ansøgning: opretter KUN en sag. Kræver adgang til egen ejendom.
+    const ansoegMatch = sti.match(/^\/api\/ejendomme\/([^/]+)\/ansoegninger$/);
+    if (ansoegMatch) {
+      const id = decodeURIComponent(ansoegMatch[1] as string);
+      if (!kraevHandling(bruger, res, HANDLINGER.ANSOEG_SELVBETJENING)) return;
+      if (!kraevEjendom(bruger, res, id)) return;
+      return haandterOpretAnsoegning(req, res, id, bruger);
+    }
+
     const opretSagMatch = sti.match(/^\/api\/ejendomme\/([^/]+)\/sager$/);
     if (opretSagMatch) {
       if (!kraevHandling(bruger, res, HANDLINGER.OPRET_SAG)) return;
       return haandterOpretSag(req, res, decodeURIComponent(opretSagMatch[1] as string), bruger);
+    }
+
+    const effektuerMatch = sti.match(/^\/api\/sager\/([^/]+)\/effektuer$/);
+    if (effektuerMatch) {
+      if (!kraevHandling(bruger, res, HANDLINGER.EFFEKTUER_ANSOEGNING)) return;
+      return haandterEffektuer(req, res, decodeURIComponent(effektuerMatch[1] as string), bruger);
     }
 
     const sagStatusMatch = sti.match(/^\/api\/sager\/([^/]+)\/status$/);
@@ -815,6 +946,7 @@ async function haandter(req: IncomingMessage, res: ServerResponse): Promise<void
   // Kodelister til dialoger er tilgængelige for begge roller.
   if (sti === '/api/ydelseskatalog') return haandterYdelseskatalog(res);
   if (sti === '/api/sagskatalog') return haandterSagskatalog(res);
+  if (sti === '/api/ansoegningskatalog') return haandterAnsoegningskatalog(res);
   if (sti === '/api/partfelter') return haandterPartfelter(res);
 
   const kontaktHistMatch = sti.match(/^\/api\/parter\/([^/]+)\/kontakt-historik$/);
