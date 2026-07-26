@@ -560,9 +560,11 @@ returnerer hver relevant post beriget med `{ hastegrad, kategori, fristtekst,
 fristdato }`, sorteret efter hastegrad (kritisk først) og derefter fristdato
 stigende. Håndhævelse: endpointet `GET /api/sagsoverblik` er forbeholdt
 sagsbehandlere (borger → 403), og al beregning/filtrering/sortering sker på
-serveren. Svaret indeholder også `afdeling_total` — antallet af poster for hele
-afdelingen (uafhængigt af `omfang` og af hastegrad-/kategori-filtrene) — så
-brugerfladen kan vise en tæller for afdelingen uden selv at regne.
+serveren. Svaret indeholder også `afdeling_ubehandlede` — antallet af
+**ubehandlede** sager (status `MODTAGET`, dvs. modtaget men endnu ikke taget
+under behandling) for hele afdelingen, uafhængigt af `omfang` og af
+hastegrad-/kategori-filtrene — så brugerfladen kan vise afdelingens ubearbejdede
+indbakke som en tæller uden selv at regne.
 
 ---
 

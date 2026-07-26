@@ -308,15 +308,19 @@ describe('sagsoverblik: prioriteret visning kun for sagsbehandlere', () => {
     for (const p of data.poster) expect(p.hastegrad).toBe('KRITISK');
   });
 
-  it('afdeling_total tæller hele afdelingen uafhængigt af omfang', async () => {
+  it('afdeling_ubehandlede tæller afdelingens ubehandlede (MODTAGET) sager', async () => {
+    const foer = (await getJson('/api/sagsoverblik?omfang=mine', SAGSBEHANDLER)).afdeling_ubehandlede;
+    expect(typeof foer).toBe('number');
+    // En ny borgeransøgning opretter en sag i status MODTAGET → tælleren stiger.
+    await post('/api/ejendomme/ejendom-01/ansoegninger', BORGER_01, {
+      art: 'EKSTRA_BEHOLDER',
+      ydelsestype_id: 'ytype-beholder-240-2',
+    });
     const alle = await getJson('/api/sagsoverblik?omfang=alle', SAGSBEHANDLER);
+    expect(alle.afdeling_ubehandlede).toBe(foer + 1);
+    // Tælleren er den samme uanset omfang (den handler altid om afdelingen).
     const mine = await getJson('/api/sagsoverblik?omfang=mine', SAGSBEHANDLER);
-    // Uden filtre er "alle"-listen præcis afdelingens poster.
-    expect(alle.afdeling_total).toBe(alle.poster.length);
-    // afdeling_total er den samme uanset omfang.
-    expect(mine.afdeling_total).toBe(alle.afdeling_total);
-    // Afdelingen har mindst lige så mange poster som "mine".
-    expect(alle.afdeling_total).toBeGreaterThanOrEqual(mine.poster.length);
+    expect(mine.afdeling_ubehandlede).toBe(alle.afdeling_ubehandlede);
   });
 });
 
