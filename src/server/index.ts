@@ -791,7 +791,9 @@ function haandterSagsoverblik(res: ServerResponse, bruger: Bruger, params: URLSe
     ydelser: alleYdelseInput,
     opkraevninger: alleOpkrInput,
   });
-  const afdeling_total = afdelingPoster.length;
+  // Afdelingens UBEHANDLEDE sager: modtaget, men endnu ikke taget under
+  // behandling (status MODTAGET). Det er afdelingens ubearbejdede indbakke.
+  const afdeling_ubehandlede = alleSagInput.filter((s) => s.status === 'MODTAGET').length;
 
   // "mine" filtrerer sagerne på ansvarlig bruger; systemsager (uden ansvarlig)
   // hører til afdelingen og vises kun i "alle".
@@ -824,7 +826,7 @@ function haandterSagsoverblik(res: ServerResponse, bruger: Bruger, params: URLSe
     part_navn: p.part_id ? findPart(p.part_id)?.navn ?? null : null,
   }));
 
-  sendJson(res, 200, { omfang, totaler, afdeling_total, poster });
+  sendJson(res, 200, { omfang, totaler, afdeling_ubehandlede, poster });
 }
 
 // --- Statiske filer ----------------------------------------------------------

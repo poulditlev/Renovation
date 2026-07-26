@@ -1866,7 +1866,7 @@ async function indlaesOverblik() {
   try {
     const data = await hentJson(`/api/sagsoverblik?${p.toString()}`);
     renderOverblikTotaler(data.totaler || {});
-    renderAfdelingBadge(data.afdeling_total || 0);
+    renderAfdelingBadge(data.afdeling_ubehandlede || 0);
     renderOverblikTabel(data.poster || []);
   } catch (e) {
     fejl.textContent = `Overblikket kunne ikke hentes: ${e.message}`;
@@ -1874,15 +1874,18 @@ async function indlaesOverblik() {
   }
 }
 
-// Rød boble med antal sager for hele afdelingen. Tallet gøres tilgængeligt for
-// skærmlæsere via knappens aria-label (selve boblen er aria-hidden).
+// Rød boble med antal UBEHANDLEDE sager for hele afdelingen. Tallet gøres
+// tilgængeligt for skærmlæsere via knappens aria-label (boblen er aria-hidden).
 function renderAfdelingBadge(antal) {
   const badge = el("afdeling-badge");
   badge.textContent = String(antal);
   badge.hidden = antal === 0;
+  badge.title = antal > 0 ? `${antal} ubehandlede sager i afdelingen` : "";
   el("omfang-alle").setAttribute(
     "aria-label",
-    antal > 0 ? `Hele afdelingen, ${antal} ${antal === 1 ? "sag" : "sager"}` : "Hele afdelingen"
+    antal > 0
+      ? `Hele afdelingen, ${antal} ubehandlede ${antal === 1 ? "sag" : "sager"}`
+      : "Hele afdelingen"
   );
 }
 
