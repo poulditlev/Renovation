@@ -17,6 +17,10 @@
   --ok: #1c6b2e;
   --inaktiv: #6b3a1c;
   --fokus: #b8410a; /* tydelig, kontrastrig fokusfarve */
+  /* To nuancer af samme blå til de to øverste linjer (nemme at justere bagefter). */
+  --topbar-blaa: #102f4d; /* dyb marineblå - brandlinjen */
+  --fane-blaa: #1f4f7a; /* en anelse lysere blå - fanelinjen */
+  --fane-aktiv-bg: #e7f0f8; /* lys blå til det aktive faneblad (mørk tekst, AA) */
 }
 
 * {
@@ -150,7 +154,8 @@ body.rolle-borger .kun-sagsbehandler {
 
 /* --- Topbar med søgning --- */
 .topbar {
-  background: var(--blaa);
+  /* Dyb marineblå brandlinje - en anelse mørkere end fanelinjen nedenunder. */
+  background: var(--topbar-blaa);
   color: #fff;
   padding: 0.6rem 1rem 0.9rem;
   display: flex;
@@ -180,6 +185,9 @@ body.rolle-borger .kun-sagsbehandler {
   border-left: 1px solid #34567a;
   padding-left: 1rem;
   align-self: center;
+  /* Skub kommune-identiteten (våbenskjold + navn) helt ud til højre, så
+     systemnavnet bliver stående til venstre. */
+  margin-left: auto;
 }
 .kommune__vaaben {
   width: 44px;
@@ -191,6 +199,9 @@ body.rolle-borger .kun-sagsbehandler {
   display: flex;
   flex-direction: column;
   line-height: 1.2;
+  /* Navn og undertitel højrejusteres ved siden af skjoldet. */
+  align-items: flex-end;
+  text-align: right;
 }
 .kommune__navn {
   font-size: 0.95rem;
@@ -1112,13 +1123,19 @@ body.rolle-borger .layout {
    MINE SAGER — prioriteret sagsoverblik (kun sagsbehandler)
    ===================================================================== */
 
-/* Faner. Skjult for borgeren (borger har sin egen flade). Ligger på en
-   mørkeblå bjælke (samme som topbaren ovenover). */
+/* Faner. Skjult for borgeren (borger har sin egen flade). Ligger på en blå
+   bjælke, der er en anelse lysere end topbaren, med en fin lys kant øverst som
+   adskiller de to zoner. */
 .faner {
   display: flex;
-  gap: 0.4rem;
-  background: var(--blaa);
-  padding: 0.4rem 1rem 0.5rem;
+  gap: 0.35rem;
+  background: var(--fane-blaa);
+  border-top: 1px solid rgba(255, 255, 255, 0.28);
+  /* Ingen bund-padding: fanerne sidder på bjælkens nederkant, så den aktive
+     fane kan flugte med indholdet nedenunder. */
+  padding: 0.5rem 1rem 0;
+  position: relative;
+  z-index: 1;
 }
 body.rolle-borger .faner {
   display: none;
@@ -1127,12 +1144,14 @@ body.rolle-borger .faner {
   font: inherit;
   font-weight: 600;
   cursor: pointer;
-  color: #e6eef6; /* lys tekst på den mørke bjælke (kontrast ~9,9:1) */
+  color: #e6eef6; /* lys tekst på den blå bjælke (kontrast ~7:1) */
   background: transparent;
   /* Gennemsigtig kant reserverer pladsen, så den aktive fane ikke hopper. */
   border: 1px solid transparent;
-  border-radius: 4px;
-  padding: 0.4rem 0.95rem;
+  border-bottom: none;
+  border-radius: 5px 5px 0 0;
+  padding: 0.45rem 1rem;
+  margin-bottom: -1px; /* trækkes 1px ned, så aktiv fane dækker sømmen til indholdet */
 }
 /* Diskret fremhævning ved hover og tastaturfokus på inaktive faner. */
 .fane:hover {
@@ -1143,16 +1162,19 @@ body.rolle-borger .faner {
   outline: 3px solid var(--fokus);
   outline-offset: 2px;
 }
-/* Aktiv fane: lysere blå end bjælken + hvid kant hele vejen rundt = "løftet".
-   Hvid tekst på --blaa-kant giver ~6,7:1 (WCAG AA). Markeret med aria-current. */
+/* Aktiv fane: lys blå baggrund + hvid kant (top+sider) = løftet fane mod den
+   blå bjælke. Nederkanten er åben, så fanen flugter med indholdet nedenunder.
+   Mørk tekst på den lyse blå giver høj kontrast (WCAG AA). Markeret med
+   aria-current - farven er kun en visuel tilføjelse. */
 .fane[aria-current="true"] {
-  background: var(--blaa-kant);
-  color: #fff;
+  background: var(--fane-aktiv-bg);
+  color: var(--tekst);
   border-color: #fff;
-  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.3);
+  font-weight: 700;
 }
 .fane[aria-current="true"]:hover {
-  background: var(--blaa-kant);
+  background: var(--fane-aktiv-bg);
+  color: var(--tekst);
 }
 
 /* Vis/skjul: overbliksfladen erstatter ejendomsfladen. */
