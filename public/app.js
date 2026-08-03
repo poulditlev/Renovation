@@ -64,7 +64,8 @@ function tegnKort(ejendom, materiel) {
   }).addTo(kort);
   kortLag = L.featureGroup().addTo(kort);
 
-  let harGeometri = false;
+  // Har vi et areal (polygon eller beholderstandpladser) at zoome til?
+  let harFlade = false;
 
   // Grundens polygon fra jordstykke-opslaget.
   if (ejendom.jordstykke_geojson) {
@@ -73,7 +74,26 @@ function tegnKort(ejendom, materiel) {
       style: { color: "#14395e", weight: 2, fillColor: "#1f4f7a", fillOpacity: 0.15 },
     });
     polygon.addTo(kortLag);
-    harGeometri = true;
+    harFlade = true;
+  }
+
+  // Markør for den udsøgte adresse (adgangspunktet). Tegnes som en cirkelmarkør
+  // (ren SVG, så den vises også uden Leaflets pin-billeder) i en tydelig
+  // accentfarve, så den skiller sig ud fra beholdernes standpladsmarkører.
+  const harPunkt = typeof ejendom.latitude === "number" && typeof ejendom.longitude === "number";
+  if (harPunkt) {
+    const adresseMarkoer = L.circleMarker([ejendom.latitude, ejendom.longitude], {
+      radius: 9,
+      color: "#ffffff", // hvid ring
+      weight: 3,
+      fillColor: "#b8410a", // kontrastrig accent (samme som fokusfarven)
+      fillOpacity: 1,
+    });
+    adresseMarkoer.bindPopup(
+      `<strong>${escapeHtml(ejendom.adressetekst || "Valgt adresse")}</strong><br>Udsøgt adresse (adgangspunkt)`
+    );
+    adresseMarkoer.bindTooltip("Udsøgt adresse", { direction: "top", offset: [0, -8] });
+    adresseMarkoer.addTo(kortLag);
   }
 
   // Markører for beholderstandpladser.
@@ -84,13 +104,15 @@ function tegnKort(ejendom, materiel) {
         `<strong>${escapeHtml(m.materieltype_navn)}</strong><br>${escapeHtml(m.standplads_beskrivelse || "")}`
       );
       markoer.addTo(kortLag);
-      harGeometri = true;
+      harFlade = true;
     }
   }
 
-  if (harGeometri) {
+  if (harFlade) {
+    // Zoom så både adressemarkøren, grunden og standpladserne er med.
     kort.fitBounds(kortLag.getBounds().pad(0.3));
-  } else if (typeof ejendom.latitude === "number" && typeof ejendom.longitude === "number") {
+  } else if (harPunkt) {
+    // Kun adressen (fx en live DAWA-adresse uden jordstykke): centrér på markøren.
     kort.setView([ejendom.latitude, ejendom.longitude], 17);
   } else {
     // Fald tilbage til Roskilde centrum, hvis vi hverken har polygon eller punkt.
