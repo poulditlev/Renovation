@@ -34,8 +34,8 @@ og bygges op ét lag ad gangen, jf. modellens byggerækkefølge.
   DAWA's rå svar. **DAWA lukker 17. august 2026** og skal senere erstattes;
   laget er derfor holdt let at udskifte.
 - En simpel sagsbehandlerflade: adressesøgning med autocomplete, ejendommens
-  stamdata, tilknyttet part og et Leaflet-kort med grundens polygon og
-  beholdernes standpladser.
+  stamdata, tilknyttet part og et Leaflet-kort med en markør for den udsøgte
+  adresse (adgangspunktet), grundens polygon og beholdernes standpladser.
 
 **Lag 3 — Ydelser, engangsleverancer og fornyelse** (`src/ydelser/`, `src/data/ydelser*`, `public/`)
 
